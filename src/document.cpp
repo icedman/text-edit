@@ -128,6 +128,45 @@ void document_t::_deleteAt(int index)
     }
 }
 
+int document_t::getIndexForLine(int line)
+{
+    if (nodes.size() == 1) {
+        // access from cache
+        node_ptr n = nodes[0];
+        return n->indices[line];
+    }
+
+    int l = 0;
+    int skippedLines = 0;
+    int skippedLength = 0;
+    std::vector<node_ptr> _nodes;
+    std::string out;
+    for (auto n : nodes) {
+        l += n->lineBreaks;
+        if (l < line) {
+            skippedLines += n->lineBreaks;
+            skippedLength += n->length;
+            continue;
+        }
+        _nodes.push_back(n);
+        if (l - 1 > line) {
+            break;
+        }
+    }
+
+    for (auto n : _nodes) {
+        std::string* s = _buffers[n->type];
+        std::string sub = s->substr(n->start, n->length);
+        out += sub;
+    }
+
+    std::vector<int> indices;
+    indices.push_back(0);
+    _countLineBreaks(out, &indices);
+    line -= skippedLines;
+    return skippedLength + indices[line];
+}
+
 std::string document_t::getTextAtLine(int line)
 {
     if (nodes.size() == 1) {
@@ -247,6 +286,7 @@ int document_t::_countNodeLineBreaks(node_ptr node)
     std::string* s = _buffers[node->type];
     std::string sub = s->substr(node->start, node->length);
     node->indices.clear();
+    node->indices.push_back(0);
     node->lineBreaks = _countLineBreaks(sub, &node->indices);
     return node->lineBreaks;
 }

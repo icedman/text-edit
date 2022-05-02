@@ -23,6 +23,7 @@ struct document_t {
     void initialize(std::string text);
     void insertAt(int index, std::string text);
     void deleteAt(int index, int length);
+    int getIndexForLine(int line);
     std::string getTextAtLine(int line);
     std::string getText();
     std::string getTextAt(int index, int length);

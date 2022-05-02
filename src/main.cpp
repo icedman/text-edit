@@ -19,5 +19,8 @@ int main()
     printf(">>>%s\n", doc.getTextAtLine(0).c_str());
     printf(">>>%s\n", doc.getTextAtLine(1).c_str());
     printf(">>>%s\n", doc.getTextAtLine(4).c_str());
+    printf("index:%d\n", doc.getIndexForLine(0));
+    printf("index:%d\n", doc.getIndexForLine(1));
+    printf("index:%d\n", doc.getIndexForLine(4));
     return 0;
 }
