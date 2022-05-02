@@ -6,18 +6,42 @@ project('text-edit', 'cpp',
 pwd = meson.current_source_dir()
 cc = meson.get_compiler('cpp')
 
+add_global_arguments('-D_XOPEN_SOURCE_EXTENDED=1', language: 'cpp')
+
 text_edit_files = [
-    'src/main.cpp',
-    'src/document.cpp'
+#    'superstring/src/core/encoding-conversion.cc',
+    'superstring/src/core/libmba-diff.cc',
+    'superstring/src/core/marker-index.cc',
+    'superstring/src/core/patch.cc',
+    'superstring/src/core/point.cc',
+    'superstring/src/core/range.cc',
+#    'superstring/src/core/regex.cc',
+    'superstring/src/core/text-buffer.cc',
+    'superstring/src/core/text.cc',
+    'superstring/src/core/text-diff.cc',
+    'superstring/src/core/text-slice.cc'
+
 ]
 
 text_edit_inc = include_directories(
-    'src'
+    'src',
+    'superstring/src',
+    'superstring/src/core',
 )
 
+curses_dep = dependency('ncursesw', required: false, disabler: true)
+if not curses_dep.found()
+  curses_root = get_option('curses_root')
+  curses_lib = cc.find_library('cursesw', dirs : curses_root, required : false, disabler: true)
+  curses_dep = declare_dependency(include_directories: curses_root, dependencies: curses_lib)
+endif
+
+if get_option('build_curses')
 executable('text-edit',
     'src/main.cpp',
     text_edit_files,
-    include_directories: [ text_edit_inc ]
+    include_directories: [ text_edit_inc ],
+    dependencies: [ curses_dep ]
 )
+endif
 
