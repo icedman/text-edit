@@ -8,25 +8,24 @@ cc = meson.get_compiler('cpp')
 
 add_global_arguments('-D_XOPEN_SOURCE_EXTENDED=1', language: 'cpp')
 
-text_edit_files = [
-#    'superstring/src/core/encoding-conversion.cc',
+superstring_files = [
+    'superstring/src/core/encoding-conversion.cc',
     'superstring/src/core/libmba-diff.cc',
     'superstring/src/core/marker-index.cc',
     'superstring/src/core/patch.cc',
     'superstring/src/core/point.cc',
     'superstring/src/core/range.cc',
-#    'superstring/src/core/regex.cc',
+    'superstring/src/core/regex.cc',
     'superstring/src/core/text-buffer.cc',
     'superstring/src/core/text.cc',
     'superstring/src/core/text-diff.cc',
     'superstring/src/core/text-slice.cc'
-
 ]
 
-text_edit_inc = include_directories(
-    'src',
+superstring_includes = include_directories(
     'superstring/src',
     'superstring/src/core',
+    'superstring/vendor/libcxx',
 )
 
 curses_dep = dependency('ncursesw', required: false, disabler: true)
@@ -39,8 +38,10 @@ endif
 if get_option('build_curses')
 executable('text-edit',
     'src/main.cpp',
-    text_edit_files,
-    include_directories: [ text_edit_inc ],
+    'src/input.cpp',
+    'src/utf8.cpp',
+    superstring_files,
+    include_directories: [ 'src', superstring_includes ],
     dependencies: [ curses_dep ]
 )
 endif
