@@ -114,8 +114,11 @@ int main(int argc, char **argv) {
     clear();
 
 
-    std::vector<std::string> keys;
-
+    std::vector<std::string> outputs;
+    // std::vector<Patch::change> patches;
+    
+    auto snapshot1 = text.create_snapshot();
+    
     bool running = true;
     while(running) {
         int size = text.extent().row;
@@ -127,6 +130,8 @@ int main(int argc, char **argv) {
         status << cur_y;
         status << " col ";
         status << cur_x;
+        status << " layers:";
+        status << text.layer_count();
         drawLine(height - 1, status.str().c_str());
         refresh();
 
@@ -141,14 +146,35 @@ int main(int argc, char **argv) {
         if (ch == 27 || keySequence == "ctrl+q") {
             running = false;
         }
+        
+        if (keySequence != "") {
+          outputs.push_back(keySequence);
+        }
+        
+        if (keySequence == "ctrl+z") {
+          // text.flush_changes();
+          auto patch = text.get_inverted_changes(snapshot1);
+          std::vector<Patch::Change> changes = patch.get_changes();
+          if (changes.size() > 0) {
+            Patch::Change c = changes.back();
+            Range range = Range({c.old_start, c.old_end});
+            text.set_text_in_range(range, c.new_text->content.data());
+            cur_x = c.old_start.column;
+            cur_y = c.old_start.row;
+          }
+        }
 
         // if (keySequence == "up") start --;
         // if (keySequence == "down") start ++;
         if (keySequence == "pageup") cur_y -= height;
         if (keySequence == "pagedown") cur_y += height;
         
-        if (keySequence == "up") cur_y--;
-        if (keySequence == "down") cur_y++;
+        if (keySequence == "up") {
+          cur_y--;
+        }
+        if (keySequence == "down") {
+          cur_y++;
+        }
         if (keySequence == "left") {
           cur_x--;
           if (cur_x < 0) {
@@ -179,11 +205,9 @@ int main(int argc, char **argv) {
           keySequence = "";
           ch = '\n';
         }
-        
-        keys.push_back(keySequence);
-
+                
         if (keySequence == "" && ch != -1) {
-            Range range= Range({Point(cur_y, cur_x), Point(cur_y, cur_x)});
+            Range range = Range({Point(cur_y, cur_x), Point(cur_y, cur_x)});
             std::u16string k = u"x";
             k[0] = ch;
             text.set_text_in_range(range, k.data());
@@ -212,13 +236,14 @@ int main(int argc, char **argv) {
             }
             text.set_text_in_range(range, u"");
         }
-
     }
 
     endwin();
 
-    for(auto k : keys) {
+    for(auto k : outputs) {
         printf(">%s\n", k.c_str());
     }
+    
+    delete snapshot1;
     return 0;
 }
