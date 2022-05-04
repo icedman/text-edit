@@ -12,7 +12,7 @@ void Cursor::move_up(bool anchor) {
 
 void Cursor::move_down(bool anchor) {
   start.row++;
-  int size = buffer->extent().row;
+  int size = document->size();
   if (start.row >= size) {
     start.row = size - 1;
   }
@@ -85,33 +85,39 @@ bool Cursor::is_within(int row, int column) {
 }
 
 void Cursor::insert_text(std::u16string text) {
-  // todo .. this only works for single character entries
+  Range range = normalized();
   int c = 1;
   int r = 0;
-  if (text == u"\n") {
-    r = 1;
+  int start_size = document->size();
+  buffer->set_text_in_range(range, text.data());
+  int size_diff = document->size() - start_size;
+  if (size_diff > 0) {
+    r = size_diff;
     c = 0;
   }
-  Range range = normalized();
-  buffer->set_text_in_range(range, text.data());
   document->cursor_markers.splice(range.start, {0,0}, {r,c});
+  document->update_blocks(range.start.row, size_diff);
   clear_selection();
   move_right();
 }
 
 void Cursor::delete_text(int number_of_characters) {
-  if (!has_selection()) {
-    move_right(true);
+  for(int i=0; i<number_of_characters; i++) {
+    if (!has_selection()) {
+      move_right(true);
+    }
+    Range range = normalized();
+    int c = 1;
+    int r = 0;
+    int start_size = document->size();
+    buffer->set_text_in_range(range, u"");
+    int size_diff = document->size() - start_size;
+    if (size_diff < 0) {
+      r = -size_diff;
+      c = 0;
+    }
+    document->cursor_markers.splice(range.start, {r,c}, {0,0});
+    document->update_blocks(range.start.row, size_diff);
+    clear_selection();
   }
-  Range range = normalized();
-  // todo .. this only works for single character entries
-  int c = 1;
-  int r = 0;
-  if (start.row != end.row) {
-    r = 1;
-    c = 0;
-  }
-  buffer->set_text_in_range(range, u"");
-  document->cursor_markers.splice(range.start, {r,c}, {0,0});
-  clear_selection();
 }

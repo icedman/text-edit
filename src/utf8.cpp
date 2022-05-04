@@ -65,7 +65,7 @@ int codepoint_to_utf8(uint32_t utf, char *out) {
   }
 }
 
-std::string u16string_to_utf8string(std::u16string text) {
+std::string u16string_to_string(std::u16string text) {
   std::string res;
   for (auto c : text) {
     char tmp[5];
@@ -75,7 +75,7 @@ std::string u16string_to_utf8string(std::u16string text) {
   return res;
 }
 
-std::u16string utf8string_to_u16string(std::string text) {
+std::u16string string_to_u16string(std::string text) {
   std::u16string res;
   char *p = (char *)text.c_str();
   while (*p) {

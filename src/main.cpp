@@ -21,6 +21,7 @@
 #include "document.h"
 #include "input.h"
 #include "utf8.h"
+#include "textmate.h"
 
 int width = 0;
 int height = 0;
@@ -40,12 +41,19 @@ int scroll_y = 0;
 
 Document doc;
 
-void drawLine(int screen_row, int row, const char *text) {
+void draw_text(int screen_row, const char *text) {
+  move(screen_row, 0);
+  clrtoeol();
+  addstr(text);
+}
+
+void draw_text_line(int screen_row, int row, const char *text) {
   move(screen_row, 0);
   clrtoeol();
 
   int l = strlen(text);
 
+  doc.cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc.cursors;
 
   for (int i = 0; i < l; i++) {
@@ -71,7 +79,7 @@ void drawLine(int screen_row, int row, const char *text) {
   }
 }
 
-void drawText(TextBuffer &text, int scroll_y) {
+void draw_text_buffer(TextBuffer &text, int scroll_y) {
   int lines = text.size();
   for (int i = 0; i < lines && i < height; i++) {
     optional<uint32_t> l = text.line_length_for_row(scroll_y + i);
@@ -79,16 +87,11 @@ void drawText(TextBuffer &text, int scroll_y) {
     optional<std::u16string> row = text.line_for_row(scroll_y + i);
     if (row) {
       std::stringstream s;
-      // s << (scroll_y + i);
-      // s << " ";
-      s << u16string_to_utf8string(*row);
+      s << u16string_to_string(*row);
       s << " ";
-      // printf("index:%d\n", doc.getIndexForLine(i));
-      // printf("Line %d, %s\n", i, s.c_str());
-      drawLine(i, scroll_y + i, s.str().c_str());
-      // drawLine(i, (wchar_t*)(*row->c_str()));
+      draw_text_line(i, scroll_y + i, s.str().c_str());
     } else {
-      drawLine(i, 0, "");
+      draw_text_line(i, 0, "");
     }
   }
 }
@@ -100,7 +103,14 @@ void get_dimensions() {
   height = ws.ws_row;
 }
 
+int theme_id = -1;
+int lang_id = -1;
+
 int main(int argc, char **argv) {
+  Textmate::initialize("/home/iceman/.editor/extensions");
+  theme_id = Textmate::load_theme("/home/iceman/.editor/extensions/theme-monokai/themes/monokai-color-theme.json");
+  lang_id = Textmate::load_language("test.cpp");
+
   std::ifstream t("./tests/tinywl.c");
   // std::ifstream t("./tests/sqlite3.c");
   std::stringstream buffer;
@@ -111,14 +121,12 @@ int main(int argc, char **argv) {
   // TIMER_BEGIN
   optional<EncodingConversion> enc = transcoding_from("UTF-8");
   (*enc).decode(str, buffer.str().c_str(), buffer.str().size());
-  // str = utf8string_to_u16string(buffer.str());
+  // str = string_to_u16string(buffer.str());
   // TIMER_END
   // printf("time: %f\n------\n", cpu_time_used);
 
   TextBuffer &text = doc.buffer;
-  text.set_text(str);
-  doc.buffer.flush_changes();
-  doc.snap();
+  doc.initialize(str);
 
   std::vector<Cursor> &cursors = doc.cursors;
 
@@ -143,24 +151,28 @@ int main(int argc, char **argv) {
   while (running) {
     int size = text.extent().row;
     get_dimensions();
-    drawText(text, scroll_y);
+    draw_text_buffer(text, scroll_y);
 
     Cursor cursor = doc.cursor();
 
     std::stringstream status;
-    status << "line ";
-    status << cursor.start.row;
+    status << "theme ";
+    status << theme_id;
+    status << " lang ";
+    status << lang_id;
+    status << " line ";
+    status << (cursor.start.row + 1);
     status << " col ";
-    status << cursor.start.column;
-    status << " scroll ";
-    status << scroll_y;
+    status << (cursor.start.column + 1);
+    // status << " scroll ";
+    // status << scroll_y;
     // status << " -> line ";
     // status << cursor.end.row;
     // status << " col ";
     // status << cursor.end.column;
     // status << " layers:";
     // status << text.layer_count();
-    drawLine(height - 1, 0, status.str().c_str());
+    draw_text(height - 1, status.str().c_str());
     refresh();
 
     int ch = -1;
@@ -181,18 +193,15 @@ int main(int argc, char **argv) {
 
     if (keySequence == "ctrl+z") {
       doc.undo();
-      continue;
     }
 
     if (keySequence == "ctrl+up") {
       doc.add_cursor(doc.cursor());
       doc.cursor().move_up();
-      continue;
     }
     if (keySequence == "ctrl+down") {
       doc.add_cursor(doc.cursor());
       doc.cursor().move_down();
-      continue;
     }
 
     bool anchor = false;
@@ -214,11 +223,14 @@ int main(int argc, char **argv) {
       doc.move_right(anchor);
     }
 
-    if (cursor.start.row >= scroll_y + height - 4) {
-      scroll_y = -height + cursor.start.row + 4;
+    cursor = doc.cursor();
+
+    int lead = 0;
+    if (cursor.start.row >= scroll_y + (height - 2)- lead) {
+      scroll_y = -(height - 2) + cursor.start.row + lead;
     }
-    if (scroll_y + 4 > cursor.start.row) {
-      scroll_y = -4 + cursor.start.row;
+    if (scroll_y + lead > cursor.start.row) {
+      scroll_y = -lead + cursor.start.row;
     }
     if (scroll_y + height / 2 > size) {
       scroll_y = size - height / 2;

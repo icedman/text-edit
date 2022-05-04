@@ -3,11 +3,27 @@
 
 #include <sstream>
 
+Block::Block() : line(0), dirty(true) {}
+
 Document::Document() : snapshot(0) {}
 
 Document::~Document() {
   if (snapshot) {
     delete snapshot;
+  }
+}
+
+void Document::initialize(std::u16string& str)
+{
+  buffer.set_text(str);
+  buffer.flush_changes();
+  blocks.clear();
+  snap();
+
+  blocks.clear();
+  int l = size();
+  for(int i=0; i<l; i++) {
+    add_block_at(i + 1);
   }
 }
 
@@ -65,6 +81,18 @@ void Document::delete_text(int number_of_characters) {
   }
 }
 
+void Document::move_to_start_of_document(bool anchor)
+{}
+
+void Document::move_to_end_of_document(bool anchor)
+{}
+
+void Document::move_to_start_of_line(bool anchor)
+{}
+
+void Document::move_to_end_of_line(bool anchor)
+{}
+
 bool Document::has_selection() {
   for (auto &c : cursors) {
     if (c.has_selection())
@@ -91,24 +119,28 @@ void Document::add_cursor(Cursor cursor) { cursors.push_back(cursor.copy()); }
 void Document::undo() {
   if (!snapshot)
     return;
-  clear_cursors();
+
+  Cursor cur = cursor();
+  cursors.clear();
 
   // buffer.flush_changes();
+
   auto patch = buffer.get_inverted_changes(snapshot);
   std::vector<Patch::Change> changes = patch.get_changes();
-  if (changes.size() > 0) {
-    Patch::Change c = changes.back();
+
+  std::u16string prev;
+  auto it = changes.rbegin();
+  while(it != changes.rend()) {
+    auto c = *it++;
+    if (cursors.size() > 0 && c.old_text->content.compare(prev)!=0) break;
     Range range = Range({c.old_start, c.old_end});
-
-    std::stringstream s;
-    s << "---";
-    s << c;
-    outputs.push_back(s.str());
-
     buffer.set_text_in_range(range, c.new_text->content.data());
-    Cursor &cur = cursor();
-    cur.start = c.old_start;
-    cur.end = c.old_start;
+    if (cur.start != c.new_end && cur.end != c.new_start) {
+      cur.start = c.new_end;
+      cur.end = c.new_start;
+      cursors.push_back(cur.copy());
+    }
+    prev = c.old_text->content;
   }
 }
 
@@ -130,4 +162,56 @@ void Document::end_cursor_markers(int id) {
     }
     cursor_markers.remove(c.id);
   }
+}
+
+int Document::size()
+{
+  return buffer.extent().row;
+}
+
+BlockPtr Document::block_at(int line)
+{
+  if (line >= blocks.size()) return NULL;
+  blocks[line]->line = line;
+  return blocks[line];
+}
+
+BlockPtr Document::add_block_at(int line)
+{
+  BlockPtr block = std::make_shared<Block>();
+  block->line = line;
+  if (line >= blocks.size()) {
+    blocks.push_back(block);
+  } else {
+    blocks.insert(blocks.begin() + line, block);
+  }
+  return block;
+}
+
+BlockPtr Document::erase_block_at(int line)
+{
+  if (line >= blocks.size()) return NULL;
+  auto it = blocks.begin() + line;
+  BlockPtr block = *it;
+  blocks.erase(it);
+  outputs.push_back("remove");
+  return block;
+}
+
+void Document::update_blocks(int line, int count) {
+  block_at(line)->dirty = true;
+  if (count == 0) return;
+  int r = count > 0 ? count : -count;
+  for(int i=0;i<r;i++) {
+    if (count < 0) {
+      erase_block_at(line);
+    } else {
+      add_block_at(line);
+    }
+  }
+  // std::stringstream s;
+  // s << blocks.size();
+  // s << "/";
+  // s << size();
+  // outputs.push_back(s.str());
 }
