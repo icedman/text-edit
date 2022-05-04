@@ -17,6 +17,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "cursor.h"
+#include "document.h"
 #include "input.h"
 #include "utf8.h"
 
@@ -36,108 +38,29 @@ int height = 0;
 
 int scroll_y = 0;
 
-class Cursor : public Range {
-public:
-  TextBuffer *buffer;
-
-  void move_up(bool anchor = false) {
-    if (start.row > 0) {
-      start.row--;
-    }
-    if (!anchor) {
-      end = start;
-    }
-  }
-
-  void move_down(bool anchor = false) {
-    start.row++;
-    int size = buffer->extent().row;
-    if (start.row >= size) {
-      start.row = size - 1;
-    }
-    if (!anchor) {
-      end = start;
-    }
-  }
-
-  void move_left(bool anchor = false) {
-    if (start.column == 0) {
-      if (start.row > 0) {
-        start.row--;
-        start.column = *(*buffer).line_length_for_row(start.row);
-      }
-    } else {
-      start.column--;
-    }
-
-    if (!anchor) {
-      end = start;
-    }
-  }
-
-  void move_right(bool anchor = false) {
-    start.column++;
-    if (start.column > *(*buffer).line_length_for_row(start.row)) {
-      start.row++;
-      start.column = 0;
-    }
-    if (!anchor) {
-      end = start;
-    }
-  }
-
-  Cursor copy() { return Cursor{start, end}; }
-
-  Cursor normalized() {
-    Cursor c = copy();
-    bool flip = false;
-    if (start.row > end.row ||
-        (start.row == end.row && start.column > end.column)) {
-      flip = true;
-    }
-    if (flip) {
-      c.end = start;
-      c.start = end;
-    }
-    return c;
-  }
-
-  bool has_selection() { return start != end; }
-
-  void clear_selection() {
-    Cursor n = normalized();
-    start = n.start;
-    end = start;
-  }
-
-  bool is_within(int row, int column) {
-    Cursor c = normalized();
-    if (row < c.start.row || (row == c.start.row && column < c.start.column))
-      return false;
-    if (row > c.end.row || (row == c.end.row && column > c.end.column))
-      return false;
-    return true;
-  }
-};
-
-Cursor cursor;
+Document doc;
 
 void drawLine(int screen_row, int row, const char *text) {
   move(screen_row, 0);
   clrtoeol();
 
-  int cx = cursor.start.column;
-  int cy = cursor.start.row - scroll_y;
   int l = strlen(text);
-  if (cx > l)
-    cx = l;
+
+  std::vector<Cursor> &cursors = doc.cursors;
 
   for (int i = 0; i < l; i++) {
-    bool rev = cursor.normalized().is_within(row, i);
-    if (cursor.has_selection() && row == cursor.start.row &&
-        i == cursor.start.column) {
-      rev = false;
-      attron(A_UNDERLINE);
+    bool rev = false;
+    for (auto cursor : cursors) {
+      if (cursor.normalized().is_within(row, i)) {
+        rev = true;
+        if (cursor.has_selection() && row == cursor.start.row &&
+            i == cursor.start.column) {
+          rev = false;
+          attron(A_UNDERLINE);
+          break;
+        }
+        break;
+      }
     }
     if (rev) {
       attron(A_REVERSE);
@@ -192,8 +115,12 @@ int main(int argc, char **argv) {
   // TIMER_END
   // printf("time: %f\n------\n", cpu_time_used);
 
-  TextBuffer text(str);
-  cursor.buffer = &text;
+  TextBuffer &text = doc.buffer;
+  text.set_text(str);
+  doc.buffer.flush_changes();
+  doc.snap();
+
+  std::vector<Cursor> &cursors = doc.cursors;
 
   setlocale(LC_ALL, "");
 
@@ -212,13 +139,13 @@ int main(int argc, char **argv) {
   std::vector<std::string> outputs;
   // std::vector<Patch::change> patches;
 
-  auto snapshot1 = text.create_snapshot();
-
   bool running = true;
   while (running) {
     int size = text.extent().row;
     get_dimensions();
     drawText(text, scroll_y);
+
+    Cursor cursor = doc.cursor();
 
     std::stringstream status;
     status << "line ";
@@ -253,37 +180,19 @@ int main(int argc, char **argv) {
     }
 
     if (keySequence == "ctrl+z") {
-      // text.flush_changes();
-      auto patch = text.get_inverted_changes(snapshot1);
-      std::vector<Patch::Change> changes = patch.get_changes();
-      if (changes.size() > 0) {
-        Patch::Change c = changes.back();
-        Range range = Range({c.old_start, c.old_end});
-        text.set_text_in_range(range, c.new_text->content.data());
-        cursor.start = c.old_start;
-        cursor.end = c.old_start;
-      }
-    }
-
-    if (keySequence == "ctrl+e") {
-      auto patch = text.get_inverted_changes(snapshot1);
-      std::vector<Patch::Change> changes = patch.get_changes();
-      for (auto c : changes) {
-        std::string s = u16string_to_utf8string(c.old_text->content);
-        outputs.push_back(s);
-      }
+      doc.undo();
+      continue;
     }
 
     if (keySequence == "ctrl+up") {
-      int r = -height + cursor.start.row;
-      if (r < 0) {
-        r = 0;
-      }
-      cursor.start.row = r;
+      doc.add_cursor(doc.cursor());
+      doc.cursor().move_up();
+      continue;
     }
-    if (keySequence == "pagedown") {
-      cursor.start.row += height;
-      cursor.move_down();
+    if (keySequence == "ctrl+down") {
+      doc.add_cursor(doc.cursor());
+      doc.cursor().move_down();
+      continue;
     }
 
     bool anchor = false;
@@ -293,16 +202,16 @@ int main(int argc, char **argv) {
     }
 
     if (keySequence == "up") {
-      cursor.move_up(anchor);
+      doc.move_up(anchor);
     }
     if (keySequence == "down") {
-      cursor.move_down(anchor);
+      doc.move_down(anchor);
     }
     if (keySequence == "left") {
-      cursor.move_left(anchor);
+      doc.move_left(anchor);
     }
     if (keySequence == "right") {
-      cursor.move_right(anchor);
+      doc.move_right(anchor);
     }
 
     if (cursor.start.row >= scroll_y + height - 4) {
@@ -325,46 +234,20 @@ int main(int argc, char **argv) {
 
     // input
     if (keySequence == "" && ch != -1) {
-      Range range = cursor.normalized();
-      std::u16string k = u"x";
-      k[0] = ch;
-      text.set_text_in_range(range, k.data());
-      cursor.clear_selection();
-      cursor.move_right();
-      if (ch == '\n') {
-        cursor.start.column = 0;
-      }
+      std::u16string text = u"x";
+      text[0] = ch;
+      doc.insert_text(text);
     }
 
     // delete
     if (keySequence == "backspace") {
-      if (cursor.has_selection()) {
-        keySequence = "delete";
-      } else {
-        if (cursor.start.column == 0 && cursor.start.row > 0) {
-          cursor.move_up();
-          cursor.start.column = *text.line_length_for_row(cursor.start.row);
-          Range range = Range({Point(cursor.start.row, cursor.start.column),
-                               Point(cursor.start.row + 1, 0)});
-          text.set_text_in_range(range, u"");
-          cursor.end = cursor.start;
-        } else if (cursor.start.column > 0) {
-          cursor.move_left();
-          keySequence = "delete";
-        }
+      if (!doc.has_selection()) {
+        doc.move_left();
       }
+      doc.delete_text();
     }
     if (keySequence == "delete") {
-      Cursor cur = cursor.normalized();
-      if (!cursor.has_selection()) {
-        cur.end.column++;
-        if (cur.end.column > *text.line_length_for_row(cur.start.row)) {
-          cur.end.column = 0;
-          cur.end.row++;
-        }
-      }
-      text.set_text_in_range(cur, u"");
-      cursor.clear_selection();
+      doc.delete_text();
     }
   }
 
@@ -373,7 +256,10 @@ int main(int argc, char **argv) {
   for (auto k : outputs) {
     printf(">%s\n", k.c_str());
   }
+  for (auto k : doc.outputs) {
+    printf(">%s\n", k.c_str());
+  }
 
-  delete snapshot1;
+  // printf("%s\n", doc.buffer.get_dot_graph().c_str());
   return 0;
 }

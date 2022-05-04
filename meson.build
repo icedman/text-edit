@@ -38,6 +38,8 @@ endif
 if get_option('build_curses')
 executable('text-edit',
     'src/main.cpp',
+    'src/cursor.cpp',
+    'src/document.cpp',
     'src/input.cpp',
     'src/utf8.cpp',
     superstring_files,
