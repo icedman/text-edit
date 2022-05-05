@@ -20,11 +20,16 @@
 #include "cursor.h"
 #include "document.h"
 #include "input.h"
-#include "utf8.h"
 #include "textmate.h"
+#include "theme.h"
+#include "utf8.h"
+
+std::vector<std::string> outputs;
 
 int width = 0;
 int height = 0;
+int theme_id = -1;
+int lang_id = -1;
 
 #define TIMER_BEGIN                                                            \
   clock_t start, end;                                                          \
@@ -41,13 +46,72 @@ int scroll_y = 0;
 
 Document doc;
 
+enum color_pair_e { NORMAL = 0, SELECTED };
+
+#define SELECTED_OFFSET 500
+static std::map<int, int> colorMap;
+static std::vector<int> colors;
+
+int color_index(int r, int g, int b) {
+  return color_info_t::nearest_color_index(r, g, b);
+}
+
+int pair_for_color(int colorIdx, bool selected) {
+  if (selected && colorIdx == color_pair_e::NORMAL) {
+    return color_pair_e::SELECTED;
+  }
+  return colorMap[colorIdx + (selected ? SELECTED_OFFSET : 0)];
+}
+
+int fg = 0;
+int bg = 0;
+int sel = 0;
+
+void update_colors() {
+  colorMap.clear();
+
+  theme_info_t info = Textmate::theme_info();
+
+  fg = info.fg_a; // color_index(info.fg_r, info.fg_g, info.fg_b);
+  bg = info.bg_a; // color_index(info.bg_r, info.bg_g, info.bg_b);
+  sel = color_index(info.sel_r, info.sel_g, info.sel_b);
+
+  theme_ptr theme = Textmate::theme();
+
+  //---------------
+  // build the color pairs
+  //---------------
+  init_pair(color_pair_e::NORMAL, fg, bg);
+  init_pair(color_pair_e::SELECTED, fg, sel);
+
+  int idx = 32;
+
+  auto it = theme->colorIndices.begin();
+  while (it != theme->colorIndices.end()) {
+    colorMap[it->first] = idx;
+    init_pair(idx++, it->first, bg);
+    it++;
+  }
+
+  it = theme->colorIndices.begin();
+  while (it != theme->colorIndices.end()) {
+    colorMap[it->first + SELECTED_OFFSET] = idx;
+    init_pair(idx++, it->first, sel);
+    if (it->first == sel) {
+      colorMap[it->first + SELECTED_OFFSET] = idx + 1;
+    }
+    it++;
+  }
+}
+
 void draw_text(int screen_row, const char *text) {
   move(screen_row, 0);
   clrtoeol();
   addstr(text);
 }
 
-void draw_text_line(int screen_row, int row, const char *text) {
+void draw_text_line(int screen_row, int row, const char *text,
+                    std::vector<textstyle_t> &styles) {
   move(screen_row, 0);
   clrtoeol();
 
@@ -56,42 +120,73 @@ void draw_text_line(int screen_row, int row, const char *text) {
   doc.cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc.cursors;
 
+  int default_pair = pair_for_color(fg, false);
   for (int i = 0; i < l; i++) {
-    bool rev = false;
+    int pair = default_pair;
+    bool selected = false;
+
+    // build...
     for (auto cursor : cursors) {
       if (cursor.normalized().is_within(row, i)) {
-        rev = true;
+        selected = true;
         if (cursor.has_selection() && row == cursor.start.row &&
             i == cursor.start.column) {
-          rev = false;
-          attron(A_UNDERLINE);
+          selected = false;
+          attron(A_REVERSE);
           break;
         }
         break;
       }
     }
-    if (rev) {
-      attron(A_REVERSE);
+
+    char ch = text[i];
+
+    for (auto s : styles) {
+      if (s.start >= i && i < s.start + s.length) {
+        int colorIdx = color_index(s.r, s.g, s.b);
+        pair = pair_for_color(colorIdx, selected);
+        break;
+      }
     }
-    addch(text[i]);
+
+    attron(COLOR_PAIR(pair));
+    addch(ch);
+    attroff(COLOR_PAIR(pair));
     attroff(A_REVERSE);
     attroff(A_UNDERLINE);
   }
 }
 
 void draw_text_buffer(TextBuffer &text, int scroll_y) {
-  int lines = text.size();
-  for (int i = 0; i < lines && i < height; i++) {
-    optional<uint32_t> l = text.line_length_for_row(scroll_y + i);
-    int line = l ? *l : 0;
-    optional<std::u16string> row = text.line_for_row(scroll_y + i);
+  int view_start = scroll_y;
+  int view_end = scroll_y + height;
+
+  // highlight
+  int idx = 0;
+  int start = scroll_y - height / 2;
+  if (start < 0)
+    start = 0;
+  for (int i = 0; i < (height * 1.5); i++) {
+    int line = start + i;
+    BlockPtr block = doc.block_at(line);
+    if (!block)
+      continue;
+
+    optional<std::u16string> row = text.line_for_row(line);
+    std::stringstream s;
     if (row) {
-      std::stringstream s;
       s << u16string_to_string(*row);
       s << " ";
-      draw_text_line(i, scroll_y + i, s.str().c_str());
-    } else {
-      draw_text_line(i, 0, "");
+    }
+    if (block->dirty) {
+      block->styles = Textmate::run_highlighter(
+          (char *)s.str().c_str(), lang_id, theme_id, block.get(),
+          doc.previous_block(block).get(), doc.next_block(block).get());
+      block->dirty = false;
+    }
+
+    if (line >= view_start && line < view_end) {
+      draw_text_line(idx++, line, s.str().c_str(), block->styles);
     }
   }
 }
@@ -103,16 +198,21 @@ void get_dimensions() {
   height = ws.ws_row;
 }
 
-int theme_id = -1;
-int lang_id = -1;
-
 int main(int argc, char **argv) {
-  Textmate::initialize("/home/iceman/.editor/extensions");
-  theme_id = Textmate::load_theme("/home/iceman/.editor/extensions/theme-monokai/themes/monokai-color-theme.json");
-  lang_id = Textmate::load_language("test.cpp");
+  std::string file_path = "./tests/main.cpp";
+  if (argc > 1) {
+    file_path = argv[argc - 1];
+  }
 
-  std::ifstream t("./tests/tinywl.c");
-  // std::ifstream t("./tests/sqlite3.c");
+  Textmate::initialize("/home/iceman/.editor/extensions/");
+  theme_id =
+      Textmate::load_theme("/home/iceman/.editor/extensions/theme-monokai/"
+                           "themes/monokai-color-theme.json");
+  lang_id = Textmate::load_language(file_path);
+
+  theme_info_t info = Textmate::theme_info();
+
+  std::ifstream t(file_path);
   std::stringstream buffer;
   buffer << t.rdbuf();
 
@@ -141,13 +241,15 @@ int main(int argc, char **argv) {
   use_default_colors();
   start_color();
 
+  update_colors();
+
   curs_set(0);
   clear();
 
-  std::vector<std::string> outputs;
   // std::vector<Patch::change> patches;
 
   bool running = true;
+
   while (running) {
     int size = text.extent().row;
     get_dimensions();
@@ -156,10 +258,10 @@ int main(int argc, char **argv) {
     Cursor cursor = doc.cursor();
 
     std::stringstream status;
-    status << "theme ";
-    status << theme_id;
-    status << " lang ";
-    status << lang_id;
+    // status << "theme ";
+    // status << theme_id;
+    // status << " lang ";
+    // status << lang_id;
     status << " line ";
     status << (cursor.start.row + 1);
     status << " col ";
@@ -226,7 +328,7 @@ int main(int argc, char **argv) {
     cursor = doc.cursor();
 
     int lead = 0;
-    if (cursor.start.row >= scroll_y + (height - 2)- lead) {
+    if (cursor.start.row >= scroll_y + (height - 2) - lead) {
       scroll_y = -(height - 2) + cursor.start.row + lead;
     }
     if (scroll_y + lead > cursor.start.row) {
@@ -271,6 +373,18 @@ int main(int argc, char **argv) {
   for (auto k : doc.outputs) {
     printf(">%s\n", k.c_str());
   }
+  // for (auto k : Textmate::theme()->colorIndices) {
+  // printf("indices > %d %d<\n", k.first, k.second);
+  // }
+  // for(auto k : colors) {
+  //   printf("colors > %d\n", k);
+  // }
+  // for(auto k : colorMap) {
+  //   printf("map > %d %d\n", k.first, k.second);
+  // }
+  printf("colorMap: %ld\n", colorMap.size());
+  printf("colorIndices: %ld\n", Textmate::theme()->colorIndices.size());
+  printf("color: %d\n", pair_for_color(68, false));
 
   // printf("%s\n", doc.buffer.get_dot_graph().c_str());
   return 0;

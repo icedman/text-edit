@@ -4,8 +4,8 @@
 #include "reader.h"
 #include "theme.h"
 
-#include "textmate.h"
 #include "document.h"
+#include "textmate.h"
 
 #include <time.h>
 #define SKIP_PARSE_THRESHOLD 500
@@ -39,7 +39,7 @@ inline bool color_is_set(rgba_t clr) {
 
 inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
   textstyle_t res = {
-      index, 1, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, false,
+      index, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, false,
   };
 
   int32_t start;
@@ -66,6 +66,7 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
       }
       res.italic = res.italic || span.italic;
 
+#if 1
       if (span.scope.find("comment.block") == 0) {
         res.flags = res.flags | SCOPE_COMMENT_BLOCK;
       }
@@ -105,6 +106,7 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
           }
         }
       }
+#endif
     }
   }
   return res;
@@ -130,6 +132,7 @@ static textstyle_t textstyle_buffer[MAX_STYLED_SPANS];
 static char text_buffer[MAX_BUFFER_LENGTH];
 
 theme_ptr current_theme() { return themes[0]; }
+theme_ptr Textmate::theme() { return themes[0]; }
 
 void Textmate::initialize(std::string path) {
   load_extensions(path, extensions);
@@ -170,7 +173,6 @@ theme_color_t theme_color_from_scope_fg_bg(char *scope, bool fore = true) {
   return res;
 }
 
-
 theme_color_t theme_color(char *scope) {
   return theme_color_from_scope_fg_bg(scope);
 }
@@ -178,8 +180,7 @@ theme_color_t theme_color(char *scope) {
 theme_info_t themeInfo;
 int themeInfoId = -1;
 
-
-theme_info_t theme_info() {
+theme_info_t Textmate::theme_info() {
   char _default[32] = "default";
   theme_info_t info;
   color_info_t fg;
@@ -228,9 +229,11 @@ theme_info_t theme_info() {
   info.fg_r = fg.red;
   info.fg_g = fg.green;
   info.fg_b = fg.blue;
+  info.fg_a = color_info_t::nearest_color_index(fg.red, fg.green, fg.blue);
   info.bg_r = bg.red;
   info.bg_g = bg.green;
   info.bg_b = bg.blue;
+  info.bg_a = color_info_t::nearest_color_index(bg.red, bg.green, bg.blue);
   info.sel_r = sel.red;
   info.sel_g = sel.green;
   info.sel_b = sel.blue;
@@ -245,7 +248,7 @@ theme_info_t theme_info() {
   return info;
 }
 
- int Textmate::load_theme(std::string path) {
+int Textmate::load_theme(std::string path) {
   theme_ptr theme = theme_from_name(path, extensions);
   if (theme != NULL) {
     themes.emplace_back(theme);
@@ -254,12 +257,12 @@ theme_info_t theme_info() {
   return 0;
 }
 
- int load_icons(std::string path) {
+int load_icons(std::string path) {
   icons = icon_theme_from_name(path, extensions);
   return 0;
 }
 
- int Textmate::load_language(std::string path) {
+int Textmate::load_language(std::string path) {
   language_info_ptr lange = language_from_file(path, extensions);
   if (lange != NULL) {
     languages.emplace_back(lange);
@@ -283,11 +286,13 @@ void dump_tokens(std::map<size_t, scope::scope_t> &scopes) {
 std::map<size_t, parse::stack_ptr> parser_states;
 std::map<size_t, std::string> block_texts;
 
-textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
-                             int block, int previous_block, int next_block) {
-  // end marker
-  textstyle_buffer[0].start = 0;
-  textstyle_buffer[0].length = 0;
+std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
+                                                   int themeId, Block *block,
+                                                   Block *prev_block,
+                                                   Block *next_block) {
+
+  std::vector<textstyle_t> textstyle_buffer;
+
   if (strlen(_text) > SKIP_PARSE_THRESHOLD) {
     return textstyle_buffer;
   }
@@ -315,10 +320,10 @@ textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
   const char *last = first + l;
 
   parse::stack_ptr parser_state;
-  // if (documents[document]->blocks[previous_block] != NULL &&
-  //     !documents[document]->blocks[previous_block]->commentLine) {
-  //   parser_state = documents[document]->blocks[previous_block]->parser_state;
-  // }
+  if (prev_block != NULL && !prev_block->comment_line) {
+    parser_state = prev_block->parser_state;
+    block->prev_comment_block = prev_block->comment_block;
+  }
 
   bool firstLine = false;
   if (parser_state == NULL) {
@@ -336,10 +341,8 @@ textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
   // dump_tokens(scopes);
   // }
 
-  // add_block(document, block);
-  // documents[document]->blocks[block]->parser_state = parser_state;
-  // documents[document]->blocks[block]->commentLine = false;
-  // documents[document]->blocks[block]->text = _text;
+  block->parser_state = parser_state;
+  block->comment_line = false;
 
   std::map<size_t, scope::scope_t>::iterator it = scopes.begin();
   size_t n = 0;
@@ -362,7 +365,7 @@ textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
                                 (int)(255 * style.foreground.red),
                                 (int)(255 * style.foreground.green),
                                 (int)(255 * style.foreground.blue),
-                                0,
+                                style.foreground.index,
                             },
                         .bg = {0, 0, 0, 0},
                         .bold = style.bold == bool_true,
@@ -394,7 +397,7 @@ textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
   textstyle_t *prev = NULL;
 
   for (int i = 0; i < l && i < MAX_STYLED_SPANS; i++) {
-    textstyle_buffer[idx] = construct_style(spans, i);
+    textstyle_buffer.push_back(construct_style(spans, i));
     textstyle_t *ts = &textstyle_buffer[idx];
 
     // brackets hack - use language info
@@ -442,6 +445,7 @@ textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
         ts->r = themeInfo.fg_r;
         ts->g = themeInfo.fg_g;
         ts->b = themeInfo.fg_b;
+        ts->a = themeInfo.fg_a;
       }
     }
 
@@ -454,17 +458,21 @@ textstyle_t *run_highlighter(char *_text, int langId, int themeId, int document,
     idx++;
   }
 
-  textstyle_buffer[idx].start = 0;
-  textstyle_buffer[idx].length = 0;
+  if (idx > 0) {
+    block->comment_block =
+        (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT_BLOCK);
+    block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT) &&
+                          !block->comment_block;
+  }
 
-  // if (idx > 0) {
-  //   documents[document]->blocks[block]->commentLine =
-  //       (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT);
-  // }
+  if (next_block) {
+    if (next_block->comment_block != block->comment_block) {
+      next_block->dirty = true;
+    }
+  }
 
   return textstyle_buffer;
 }
-
 
 char *language_definition(int langId) {
   language_info_ptr lang = languages[langId];
@@ -473,7 +481,6 @@ char *language_definition(int langId) {
   strcpy(text_buffer, ss.str().c_str());
   return text_buffer;
 }
-
 
 char *icon_for_filename(char *filename) {
   icon_t icon = icon_for_file(icons, filename, extensions);

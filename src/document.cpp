@@ -3,7 +3,9 @@
 
 #include <sstream>
 
-Block::Block() : line(0), dirty(true) {}
+Block::Block()
+    : line(0), comment_line(false), comment_block(false),
+      prev_comment_block(false), dirty(true) {}
 
 Document::Document() : snapshot(0) {}
 
@@ -13,8 +15,7 @@ Document::~Document() {
   }
 }
 
-void Document::initialize(std::u16string& str)
-{
+void Document::initialize(std::u16string &str) {
   buffer.set_text(str);
   buffer.flush_changes();
   blocks.clear();
@@ -22,7 +23,7 @@ void Document::initialize(std::u16string& str)
 
   blocks.clear();
   int l = size();
-  for(int i=0; i<l; i++) {
+  for (int i = 0; i < l; i++) {
     add_block_at(i + 1);
   }
 }
@@ -81,17 +82,13 @@ void Document::delete_text(int number_of_characters) {
   }
 }
 
-void Document::move_to_start_of_document(bool anchor)
-{}
+void Document::move_to_start_of_document(bool anchor) {}
 
-void Document::move_to_end_of_document(bool anchor)
-{}
+void Document::move_to_end_of_document(bool anchor) {}
 
-void Document::move_to_start_of_line(bool anchor)
-{}
+void Document::move_to_start_of_line(bool anchor) {}
 
-void Document::move_to_end_of_line(bool anchor)
-{}
+void Document::move_to_end_of_line(bool anchor) {}
 
 bool Document::has_selection() {
   for (auto &c : cursors) {
@@ -130,9 +127,10 @@ void Document::undo() {
 
   std::u16string prev;
   auto it = changes.rbegin();
-  while(it != changes.rend()) {
+  while (it != changes.rend()) {
     auto c = *it++;
-    if (cursors.size() > 0 && c.old_text->content.compare(prev)!=0) break;
+    if (cursors.size() > 0 && c.old_text->content.compare(prev) != 0)
+      break;
     Range range = Range({c.old_start, c.old_end});
     buffer.set_text_in_range(range, c.new_text->content.data());
     if (cur.start != c.new_end && cur.end != c.new_start) {
@@ -164,20 +162,16 @@ void Document::end_cursor_markers(int id) {
   }
 }
 
-int Document::size()
-{
-  return buffer.extent().row;
-}
+int Document::size() { return buffer.extent().row; }
 
-BlockPtr Document::block_at(int line)
-{
-  if (line >= blocks.size()) return NULL;
+BlockPtr Document::block_at(int line) {
+  if (line >= blocks.size() || line < 0)
+    return NULL;
   blocks[line]->line = line;
   return blocks[line];
 }
 
-BlockPtr Document::add_block_at(int line)
-{
+BlockPtr Document::add_block_at(int line) {
   BlockPtr block = std::make_shared<Block>();
   block->line = line;
   if (line >= blocks.size()) {
@@ -188,9 +182,9 @@ BlockPtr Document::add_block_at(int line)
   return block;
 }
 
-BlockPtr Document::erase_block_at(int line)
-{
-  if (line >= blocks.size()) return NULL;
+BlockPtr Document::erase_block_at(int line) {
+  if (line >= blocks.size())
+    return NULL;
   auto it = blocks.begin() + line;
   BlockPtr block = *it;
   blocks.erase(it);
@@ -198,11 +192,22 @@ BlockPtr Document::erase_block_at(int line)
   return block;
 }
 
+BlockPtr Document::previous_block(BlockPtr block) {
+  return block_at(block->line - 1);
+}
+
+BlockPtr Document::next_block(BlockPtr block) {
+  return block_at(block->line + 1);
+}
+
 void Document::update_blocks(int line, int count) {
-  block_at(line)->dirty = true;
-  if (count == 0) return;
+  BlockPtr block = block_at(line);
+  block->dirty = true;
+
+  if (count == 0)
+    return;
   int r = count > 0 ? count : -count;
-  for(int i=0;i<r;i++) {
+  for (int i = 0; i < r; i++) {
     if (count < 0) {
       erase_block_at(line);
     } else {

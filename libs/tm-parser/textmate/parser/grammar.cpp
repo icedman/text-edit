@@ -142,12 +142,12 @@ void grammar_t::setup_includes(rule_ptr const& rule, rule_ptr const& base,
         }
 
         if (!rule->include) {
-            if (base != self)
-                printf("%s → %s: include not found ‘%s’\n", base->scope_string.c_str(),
-                    self->scope_string.c_str(), include.c_str());
-            else
-                printf("%s: include not found ‘%s’\n",
-                    self->scope_string.c_str(), include.c_str());
+            // if (base != self)
+            //     printf("%s → %s: include not found ‘%s’\n", base->scope_string.c_str(),
+            //         self->scope_string.c_str(), include.c_str());
+            // else
+            //     printf("%s: include not found ‘%s’\n",
+            //         self->scope_string.c_str(), include.c_str());
         }
     } else {
         for (rule_ptr child : rule->children)
