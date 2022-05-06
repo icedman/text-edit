@@ -48,6 +48,7 @@ void Cursor::move_right(bool anchor) {
 }
 
 Cursor Cursor::copy() { return Cursor{start, end, buffer, document}; }
+Cursor Cursor::copy_from(Cursor cursor) { return Cursor{cursor.start, cursor.end, cursor.buffer, cursor.document}; }
 
 bool Cursor::is_normalized() {
   if (start.row > end.row ||
@@ -99,6 +100,9 @@ void Cursor::insert_text(std::u16string text) {
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
   move_right();
+  if (start.row != range.start.row && size_diff == 0) {
+    move_left();
+  }
 }
 
 void Cursor::delete_text(int number_of_characters) {

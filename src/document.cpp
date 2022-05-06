@@ -23,7 +23,7 @@ void Document::initialize(std::u16string &str) {
 
   blocks.clear();
   int l = size();
-  for (int i = 0; i < l; i++) {
+  for (int i = 0; i < l + 1; i++) {
     add_block_at(i + 1);
   }
 }
@@ -140,6 +140,11 @@ void Document::undo() {
     }
     prev = c.old_text->content;
   }
+
+  // dirty all
+  for(auto b : blocks) {
+    b->dirty = true;
+  }
 }
 
 void Document::redo() {}
@@ -167,7 +172,10 @@ int Document::size() { return buffer.extent().row; }
 BlockPtr Document::block_at(int line) {
   if (line >= blocks.size() || line < 0)
     return NULL;
-  blocks[line]->line = line;
+  if (blocks[line]->line != line) {
+    blocks[line]->dirty = true;
+    blocks[line]->line = line;
+  }
   return blocks[line];
 }
 
@@ -203,6 +211,10 @@ BlockPtr Document::next_block(BlockPtr block) {
 void Document::update_blocks(int line, int count) {
   BlockPtr block = block_at(line);
   block->dirty = true;
+
+  // todo... detect change at run_highlighter
+  BlockPtr next_block = block_at(line+1);
+  if (next_block) next_block->dirty = true;
 
   if (count == 0)
     return;

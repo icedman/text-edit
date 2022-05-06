@@ -66,7 +66,6 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
       }
       res.italic = res.italic || span.italic;
 
-#if 1
       if (span.scope.find("comment.block") == 0) {
         res.flags = res.flags | SCOPE_COMMENT_BLOCK;
       }
@@ -76,7 +75,7 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
       if (span.scope.find("string.quoted") == 0) {
         res.flags = res.flags | SCOPE_STRING;
       }
-
+#if 0
       if (index == span.start) {
         if (span.scope.find(".bracket") != -1) {
           res.flags = res.flags | SCOPE_BRACKET;
@@ -320,7 +319,9 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
   const char *last = first + l;
 
   parse::stack_ptr parser_state;
-  if (prev_block != NULL && !prev_block->comment_line) {
+  if (prev_block != NULL
+   // && !prev_block->comment_line
+    ) {
     parser_state = prev_block->parser_state;
     block->prev_comment_block = prev_block->comment_block;
   }
@@ -461,8 +462,8 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
   if (idx > 0) {
     block->comment_block =
         (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT_BLOCK);
-    block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT) &&
-                          !block->comment_block;
+    // block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT) &&
+    //                       !block->comment_block;
   }
 
   if (next_block) {

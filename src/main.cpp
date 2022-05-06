@@ -46,11 +46,9 @@ int scroll_y = 0;
 
 Document doc;
 
-enum color_pair_e { NORMAL = 0, SELECTED };
-
 #define SELECTED_OFFSET 500
+enum color_pair_e { NORMAL = 0, SELECTED };
 static std::map<int, int> colorMap;
-static std::vector<int> colors;
 
 int color_index(int r, int g, int b) {
   return color_info_t::nearest_color_index(r, g, b);
@@ -73,7 +71,7 @@ void update_colors() {
   theme_info_t info = Textmate::theme_info();
 
   fg = info.fg_a; // color_index(info.fg_r, info.fg_g, info.fg_b);
-  bg = info.bg_a; // color_index(info.bg_r, info.bg_g, info.bg_b);
+  bg = COLOR_BLACK; // info.bg_a; // color_index(info.bg_r, info.bg_g, info.bg_b);
   sel = color_index(info.sel_r, info.sel_g, info.sel_b);
 
   theme_ptr theme = Textmate::theme();
@@ -127,11 +125,19 @@ void draw_text_line(int screen_row, int row, const char *text,
 
     // build...
     for (auto cursor : cursors) {
-      if (cursor.normalized().is_within(row, i)) {
+      if (cursor.is_within(row, i)) {
         selected = true;
+        if (cursor.has_selection() && cursor.is_normalized()) {
+          if (row == cursor.end.row &&
+            i == cursor.end.column) {
+            selected = false;
+          }
+        }
         if (cursor.has_selection() && row == cursor.start.row &&
             i == cursor.start.column) {
-          selected = false;
+          if (!cursor.is_normalized()) {
+            selected = false;
+          }
           attron(A_REVERSE);
           break;
         }
@@ -145,6 +151,10 @@ void draw_text_line(int screen_row, int row, const char *text,
       if (s.start >= i && i < s.start + s.length) {
         int colorIdx = color_index(s.r, s.g, s.b);
         pair = pair_for_color(colorIdx, selected);
+        // std::stringstream ss;
+        // ss << pair;
+        // outputs.push_back(ss.str());
+        pair = pair > 0 ? pair : default_pair;
         break;
       }
     }
@@ -205,9 +215,8 @@ int main(int argc, char **argv) {
   }
 
   Textmate::initialize("/home/iceman/.editor/extensions/");
-  theme_id =
-      Textmate::load_theme("/home/iceman/.editor/extensions/theme-monokai/"
-                           "themes/monokai-color-theme.json");
+  // theme_id = Textmate::load_theme("default");
+  theme_id = Textmate::load_theme("/home/iceman/.editor/extensions/dracula-theme.theme-dracula-2.24.2/theme/dracula.json");
   lang_id = Textmate::load_language(file_path);
 
   theme_info_t info = Textmate::theme_info();
@@ -238,12 +247,11 @@ int main(int argc, char **argv) {
   noecho();
   nodelay(stdscr, true);
 
-  use_default_colors();
   start_color();
-
+  // use_default_colors();
   update_colors();
 
-  curs_set(0);
+  // curs_set(0);
   clear();
 
   // std::vector<Patch::change> patches;
@@ -275,6 +283,7 @@ int main(int argc, char **argv) {
     // status << " layers:";
     // status << text.layer_count();
     draw_text(height - 1, status.str().c_str());
+    move(cursor.start.row, cursor.start.column);
     refresh();
 
     int ch = -1;
@@ -285,13 +294,18 @@ int main(int argc, char **argv) {
         break;
       }
     }
-    if (ch == 27 || keySequence == "ctrl+q") {
+    if (keySequence == "ctrl+q") {
       running = false;
     }
 
-    if (keySequence != "") {
-      outputs.push_back(keySequence);
+    if (ch == 27) {
+      doc.clear_cursors();
+      ch = -1;
     }
+
+    // if (keySequence != "") {
+    //   outputs.push_back(keySequence);
+    // }
 
     if (keySequence == "ctrl+z") {
       doc.undo();
@@ -373,15 +387,7 @@ int main(int argc, char **argv) {
   for (auto k : doc.outputs) {
     printf(">%s\n", k.c_str());
   }
-  // for (auto k : Textmate::theme()->colorIndices) {
-  // printf("indices > %d %d<\n", k.first, k.second);
-  // }
-  // for(auto k : colors) {
-  //   printf("colors > %d\n", k);
-  // }
-  // for(auto k : colorMap) {
-  //   printf("map > %d %d\n", k.first, k.second);
-  // }
+
   printf("colorMap: %ld\n", colorMap.size());
   printf("colorIndices: %ld\n", Textmate::theme()->colorIndices.size());
   printf("color: %d\n", pair_for_color(68, false));

@@ -17,6 +17,7 @@ public:
   void move_right(bool anchor = false);
 
   Cursor copy();
+  Cursor copy_from(Cursor cursor);
   bool is_normalized();
   Cursor normalized();
   bool has_selection();
