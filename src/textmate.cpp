@@ -320,8 +320,8 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
 
   parse::stack_ptr parser_state;
   if (prev_block != NULL
-   // && !prev_block->comment_line
-    ) {
+      // && !prev_block->comment_line
+  ) {
     parser_state = prev_block->parser_state;
     block->prev_comment_block = prev_block->comment_block;
   }
@@ -416,7 +416,7 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
 
       // #define _P() printf(">%c %d %d %d\n", ch, lang->hasCurly,
       // lang->hasRound, lang->hasSquare);
-
+#if 0
       if (lang->hasCurly && ch == '{') {
         ts->flags =
             ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_CURLY | SCOPE_BEGIN;
@@ -439,6 +439,7 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
         ts->flags =
             ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_SQUARE | SCOPE_END;
       }
+#endif
     }
 
     if (!color_is_set({ts->r, ts->g, ts->b, 0})) {
@@ -462,13 +463,13 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
   if (idx > 0) {
     block->comment_block =
         (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT_BLOCK);
-    // block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT) &&
-    //                       !block->comment_block;
+    block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT)
+      && !block->comment_block;
   }
 
   if (next_block) {
     if (next_block->comment_block != block->comment_block) {
-      next_block->dirty = true;
+      next_block->make_dirty();
     }
   }
 

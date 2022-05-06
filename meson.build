@@ -131,6 +131,10 @@ tm_parser_includes = [
     'libs/tm-parser/textmate/extensions'
 ]
 
+if get_option('build_textmate')
+    add_global_arguments('-DTEXTMATE_ENABLED=1', language: 'cpp')
+endif
+
 curses_dep = dependency('ncursesw', required: false, disabler: true)
 if not curses_dep.found()
   curses_root = get_option('curses_root')
@@ -160,6 +164,20 @@ executable('text-edit',
         superstring_includes
     ],
     dependencies: [ curses_dep ]
+)
+endif
+
+if get_option('build_tests')
+executable('regex_test',
+    'tests/regex_test.cpp',
+    'src/utf8.cpp',
+    superstring_files,
+    onigmo_files,
+    include_directories: [
+        'src',
+        onigmo_includes,
+        superstring_includes
+    ]
 )
 endif
 

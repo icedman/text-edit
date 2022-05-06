@@ -46,9 +46,74 @@ void Cursor::move_right(bool anchor) {
     end = start;
   }
 }
+void Cursor::move_to_start_of_document(bool anchor) {
+  start.column = 0;
+  start.row = 0;
+  if (!anchor) {
+    end = start;
+  }
+}
+
+void Cursor::move_to_end_of_document(bool anchor) {
+  start = buffer->extent();
+  if (!anchor) {
+    end = start;
+  }
+}
+
+void Cursor::move_to_start_of_line(bool anchor) {
+  start.column = 0;
+  if (!anchor) {
+    end = start;
+  }
+}
+
+void Cursor::move_to_end_of_line(bool anchor) {
+  optional<uint32_t> l = (*buffer).line_length_for_row(start.row);
+  if (l) {
+    start.column = *l;
+  }
+  if (!anchor) {
+    end = start;
+  }
+}
+
+void Cursor::move_to_previous_word(bool anchor)
+{
+  std::vector<int> indices = document->word_indices_in_line(start.row, false, true);
+  int target = 0;
+  for(auto i : indices) {
+    if (i >= start.column) {
+      break;
+    }
+    target = i;
+  }
+  start.column = target;
+  if (!anchor) {
+    end = start;
+  }
+}
+
+void Cursor::move_to_next_word(bool anchor)
+{
+  std::vector<int> indices = document->word_indices_in_line(start.row, true, false);
+  int target = 0;
+  for(auto i : indices) {
+    target = i;
+    if (i > start.column) {
+      break;
+    }
+  }
+  start.column = target;
+  if (!anchor) {
+    end = start;
+  }
+}
 
 Cursor Cursor::copy() { return Cursor{start, end, buffer, document}; }
-Cursor Cursor::copy_from(Cursor cursor) { return Cursor{cursor.start, cursor.end, cursor.buffer, cursor.document}; }
+Cursor Cursor::copy_from(Cursor cursor) {
+  return Cursor{cursor.start, cursor.end, cursor.buffer, cursor.document};
+}
 
 bool Cursor::is_normalized() {
   if (start.row > end.row ||
@@ -58,9 +123,12 @@ bool Cursor::is_normalized() {
   return true;
 }
 
-Cursor Cursor::normalized() {
+Cursor Cursor::normalized(bool force_flip) {
   Cursor c = copy();
   bool flip = !is_normalized();
+  if (force_flip) {
+    flip = !flip;
+  }
   if (flip) {
     c.end = start;
     c.start = end;
@@ -99,7 +167,9 @@ void Cursor::insert_text(std::u16string text) {
   document->cursor_markers.splice(range.start, {0, 0}, {r, c});
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
-  move_right();
+  for (int i = 0; i < text.size(); i++) {
+    move_right();
+  }
   if (start.row != range.start.row && size_diff == 0) {
     move_left();
   }
@@ -124,4 +194,8 @@ void Cursor::delete_text(int number_of_characters) {
     document->update_blocks(range.start.row, size_diff);
     clear_selection();
   }
+}
+
+std::u16string Cursor::selected_text() {
+  return buffer->text_in_range(normalized());
 }

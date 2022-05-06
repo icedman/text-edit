@@ -9,3 +9,9 @@ option(
   type: 'boolean', value: true,
   description: 'build curses-based app'
 )
+
+option(
+  'build_tests',
+  type: 'boolean', value: false,
+  description: 'build test apps'
+)
