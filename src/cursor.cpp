@@ -22,6 +22,11 @@ void Cursor::move_down(bool anchor) {
 }
 
 void Cursor::move_left(bool anchor) {
+  if (!anchor && has_selection()) {
+    start = normalized().start;
+    end = start;
+    return;
+  }
   if (start.column == 0) {
     if (start.row > 0) {
       start.row--;
@@ -37,6 +42,12 @@ void Cursor::move_left(bool anchor) {
 }
 
 void Cursor::move_right(bool anchor) {
+  if (!anchor && has_selection()) {
+    Cursor cur = normalized();
+    end = normalized().end;
+    start = end;
+    return;
+  }
   start.column++;
   if (start.column > *(*buffer).line_length_for_row(start.row)) {
     start.row++;
@@ -111,8 +122,11 @@ void Cursor::move_to_next_word(bool anchor)
 }
 
 Cursor Cursor::copy() { return Cursor{start, end, buffer, document}; }
-Cursor Cursor::copy_from(Cursor cursor) {
-  return Cursor{cursor.start, cursor.end, cursor.buffer, cursor.document};
+void Cursor::copy_from(Cursor cursor) {
+  start = cursor.start;
+  end = cursor.end;
+  buffer = cursor.buffer;
+  document = cursor.document;
 }
 
 bool Cursor::is_normalized() {
@@ -136,6 +150,41 @@ Cursor Cursor::normalized(bool force_flip) {
   return c;
 }
 
+void Cursor::selection_to_uppercase()
+{
+  if (!has_selection()) return;
+  std::u16string str = selected_text();
+  std::transform(str.begin(), str.end(),str.begin(), toupper);
+  Cursor cur = copy();
+  insert_text(str);
+  copy_from(cur);
+}
+
+void Cursor::selection_to_lowercase()
+{
+  if (!has_selection()) return;
+  std::u16string str = selected_text();
+  std::transform(str.begin(), str.end(),str.begin(), tolower);
+  Cursor cur = copy();
+  insert_text(str);
+  copy_from(cur);
+}
+
+void Cursor::select_word_under()
+{
+  std::vector<Range> words = document->words_in_line(start.row);
+  for(auto w : words) {
+    Cursor cur = copy();
+    cur.start = w.start;
+    cur.end = w.end;
+    if (cur.is_within(start.row, start.column)) {
+      start  = cur.start;
+      end = cur.end;
+      return;
+    }
+  }
+}
+
 bool Cursor::has_selection() { return start != end; }
 
 void Cursor::clear_selection() {
@@ -155,16 +204,14 @@ bool Cursor::is_within(int row, int column) {
 
 void Cursor::insert_text(std::u16string text) {
   Range range = normalized();
-  int c = 1;
   int r = 0;
   int start_size = document->size();
   buffer->set_text_in_range(range, text.data());
   int size_diff = document->size() - start_size;
   if (size_diff > 0) {
     r = size_diff;
-    c = 0;
   }
-  document->cursor_markers.splice(range.start, {0, 0}, {r, c});
+  document->cursor_markers.splice(range.start, {0, 0}, {r, text.size()});
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
   for (int i = 0; i < text.size(); i++) {

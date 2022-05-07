@@ -79,6 +79,9 @@ public:
   void move_to_previous_word(bool anchor = false);
   void move_to_next_word(bool anchor = false);
 
+  void selection_to_uppercase();
+  void selection_to_lowercase();
+  void select_word_under();
   bool has_selection();
   void clear_selection();
   void clear_cursors();

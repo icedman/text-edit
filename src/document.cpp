@@ -132,6 +132,28 @@ void Document::move_to_next_word(bool anchor)
   }
 }
 
+void Document::select_word_under()
+{
+  for (auto &c : cursors) {
+    c.clear_selection();
+    c.select_word_under();
+  }  
+}
+
+void Document::selection_to_uppercase()
+{
+  for (auto &c : cursors) {
+    c.selection_to_uppercase();
+  }
+}
+
+void Document::selection_to_lowercase()
+{
+  for (auto &c : cursors) {
+    c.selection_to_lowercase();
+  }
+}
+
 bool Document::has_selection() {
   for (auto &c : cursors) {
     if (c.has_selection())

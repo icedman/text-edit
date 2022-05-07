@@ -23,9 +23,12 @@ public:
   void move_to_next_word(bool anchor = false);
 
   Cursor copy();
-  Cursor copy_from(Cursor cursor);
+  void copy_from(Cursor cursor);
   bool is_normalized();
   Cursor normalized(bool force_flip = false);
+  void selection_to_uppercase();
+  void selection_to_lowercase();
+  void select_word_under();
   bool has_selection();
   void clear_selection();
   bool is_within(int row, int column);

@@ -21,8 +21,10 @@
 #include "cursor.h"
 #include "document.h"
 #include "input.h"
+#include "keybindings.h"
 #include "textmate.h"
 #include "theme.h"
+#include "utf8.h"
 #include "utf8.h"
 
 std::vector<std::string> outputs;
@@ -266,11 +268,10 @@ int main(int argc, char **argv) {
   curs_set(1);
   clear();
 
-  // std::vector<Patch::change> patches;
-
-  bool running = true;
-  int frames = 0;
   get_dimensions();
+  
+  std::string lastKeySequence;
+  bool running = true;
   while (running) {
     int size = text.extent().row;
     draw_text_buffer(text, scroll_y);
@@ -289,6 +290,7 @@ int main(int argc, char **argv) {
 
     int ch = -1;
     std::string keySequence;
+    int frames = 0;
     while (running) {
       ch = readKey(keySequence);
       if (ch != -1) {
@@ -298,37 +300,51 @@ int main(int argc, char **argv) {
       if (frames == 1000 && get_dimensions())
         break;
       // if (frames == 500 && tree_sitter()) break;
-      if (frames > 2000)
+      if (frames > 2000) {
         frames = 0;
-    }
-    if (keySequence == "ctrl+q") {
-      running = false;
+      }
     }
 
     if (ch == 27) {
-      doc.clear_cursors();
+      keySequence = "escape";
       ch = -1;
     }
 
+    Command& cmd = command_from_keys(keySequence, lastKeySequence);
+
     if (keySequence != "") {
-      outputs.push_back(keySequence);
+      outputs.push_back(cmd.command);
     }
 
-    if (keySequence == "ctrl+z") {
+    if (cmd.command == "quit") {
+      running = false;
+    }
+
+    if (cmd.command == "await") {
+      lastKeySequence = keySequence;
+      continue;
+    }
+    lastKeySequence = "";
+
+    if (cmd.command == "cancel") {
+      doc.clear_cursors();
+    }
+
+    if (cmd.command == "undo") {
       doc.undo();
     }
 
-    if (keySequence == "ctrl+c") {
+    if (cmd.command == "copy") {
       doc.copy();
     }
-    if (keySequence == "ctrl+x") {
+    if (cmd.command == "cut") {
       doc.copy();
       doc.delete_text();
     }
-    if (keySequence == "ctrl+v") {
+    if (cmd.command == "paste") {
       doc.paste();
     }
-    if (keySequence == "ctrl+d") {
+    if (cmd.command == "select_word") {
       if (doc.cursor().has_selection()) {
         bool normed = doc.cursor().is_normalized();
         std::u16string res = doc.cursor().selected_text();
@@ -343,10 +359,22 @@ int main(int argc, char **argv) {
           cur = cur.normalized(!normed);
           doc.add_cursor(cur);
         }
+      } else {
+        doc.select_word_under();
       }
     }
+    if (cmd.command == "select_line") {
+      doc.move_to_start_of_line();
+      doc.move_to_end_of_line(true);
+    }
+    if (cmd.command == "selection_to_uppercase") {
+      doc.selection_to_uppercase();
+    }
+    if (cmd.command == "selection_to_lowercase") {
+      doc.selection_to_lowercase();
+    }
 
-    if (keySequence == "ctrl+e") {
+    if (cmd.command == "ctrl+e") {
       const std::u16string k = u"incl";
       const std::u16string j = u"";
       std::vector<TextBuffer::SubsequenceMatch> res =
@@ -363,6 +391,12 @@ int main(int argc, char **argv) {
       }
     }
 
+    bool anchor = false;
+    if (keySequence.starts_with("shift+")) {
+      anchor = true;
+      keySequence = keySequence.substr(6);
+    }
+
     if (keySequence == "ctrl+up") {
       doc.add_cursor(doc.cursor());
       doc.cursor().move_up();
@@ -370,12 +404,6 @@ int main(int argc, char **argv) {
     if (keySequence == "ctrl+down") {
       doc.add_cursor(doc.cursor());
       doc.cursor().move_down();
-    }
-
-    bool anchor = false;
-    if (keySequence.starts_with("shift+")) {
-      anchor = true;
-      keySequence = keySequence.substr(6);
     }
 
     if (keySequence == "up") {
