@@ -65,7 +65,7 @@ static int readEscapeSequence(std::string &keySequence) {
   int wait = 500;
 
   if (!kbhit(wait)) {
-      return K_ESC;
+    return K_ESC;
   }
   read(STDIN_FILENO, &seq[0], 1);
 

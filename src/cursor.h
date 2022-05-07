@@ -37,7 +37,7 @@ public:
 
   void indent();
   void unindent();
-  
+
   std::u16string selected_text();
 };
 

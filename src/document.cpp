@@ -118,30 +118,26 @@ void Document::move_to_end_of_line(bool anchor) {
   }
 }
 
-void Document::move_to_previous_word(bool anchor)
-{
+void Document::move_to_previous_word(bool anchor) {
   for (auto &c : cursors) {
     c.move_to_previous_word(anchor);
   }
 }
 
-void Document::move_to_next_word(bool anchor)
-{
-    for (auto &c : cursors) {
+void Document::move_to_next_word(bool anchor) {
+  for (auto &c : cursors) {
     c.move_to_next_word(anchor);
   }
 }
 
-void Document::select_word_from_cursor()
-{
+void Document::select_word_from_cursor() {
   for (auto &c : cursors) {
     c.clear_selection();
     c.select_word_under();
-  }  
+  }
 }
 
-void Document::add_cursor_from_selected_word()
-{
+void Document::add_cursor_from_selected_word() {
   if (cursor().has_selection()) {
     bool normed = cursor().is_normalized();
     std::u16string res = cursor().selected_text();
@@ -150,7 +146,6 @@ void Document::add_cursor_from_selected_word()
     optional<Range> m = find_from_cursor(res, cur);
     if (m) {
       std::u16string mt = buffer.text_in_range(*m);
-      outputs.push_back(u16string_to_string(mt));
       cur.start = (*m).start;
       cur.end = (*m).end;
       cur = cur.normalized(!normed);
@@ -161,15 +156,13 @@ void Document::add_cursor_from_selected_word()
   }
 }
 
-void Document::selection_to_uppercase()
-{
+void Document::selection_to_uppercase() {
   for (auto &c : cursors) {
     c.selection_to_uppercase();
   }
 }
 
-void Document::selection_to_lowercase()
-{
+void Document::selection_to_lowercase() {
   for (auto &c : cursors) {
     c.selection_to_lowercase();
   }
@@ -236,6 +229,9 @@ void Document::undo() {
   }
 
   // dirty all
+  while (blocks.size() < size()) {
+    add_block_at(0);
+  }
   for (auto b : blocks) {
     b->make_dirty();
   }
@@ -265,16 +261,16 @@ int Document::size() { return buffer.extent().row; }
 
 BlockPtr Document::block_at(int line) {
   if (tab_string.length() == 0) {
-      optional<std::u16string> row = buffer.line_for_row(line);
-      if (row) {
-        for(int i=0; i<(*row).length(); i++) {
-          if ((*row)[i] == u' ') {
-            tab_string += u" ";
-          } else {
-            break;
-          }
+    optional<std::u16string> row = buffer.line_for_row(line);
+    if (row) {
+      for (int i = 0; i < (*row).length(); i++) {
+        if ((*row)[i] == u' ') {
+          tab_string += u" ";
+        } else {
+          break;
         }
       }
+    }
   }
   if (line >= blocks.size() || line < 0)
     return NULL;
@@ -391,20 +387,22 @@ std::vector<Range> Document::words_in_line(int line) {
     // std::string _w8 = u16string_to_string(_w);
     // printf(">>%s\n", _w8.c_str());
     if (res.type == Regex::MatchResult::Full) {
-      words.push_back(Range{Point{line, offset + res.start_offset}, Point{line, offset + res.end_offset}});
+      words.push_back(Range{Point{line, offset + res.start_offset},
+                            Point{line, offset + res.end_offset}});
     }
   } while (res.type == Regex::MatchResult::Full);
 
   return words;
 }
 
-std::vector<int> Document::word_indices_in_line(int line, bool start, bool end) {
+std::vector<int> Document::word_indices_in_line(int line, bool start,
+                                                bool end) {
   std::vector<int> indices;
   BlockPtr block = block_at(line);
   if (block->words.size() == 0) {
     block->words = words_in_line(line);
   }
-  for(auto r : block->words) {
+  for (auto r : block->words) {
     if (start) {
       indices.push_back(r.start.column);
     }
@@ -415,13 +413,12 @@ std::vector<int> Document::word_indices_in_line(int line, bool start, bool end) 
   return indices;
 }
 
-void Document::indent()
-{
+void Document::indent() {
   std::map<int, bool> lines;
-  for(auto c : cursors) {
+  for (auto c : cursors) {
     lines[c.start.row] = true;
   }
-  for(auto m : lines) {
+  for (auto m : lines) {
     Cursor c = cursor().copy();
     c.start.row = m.first;
     c.start.column = 0;
@@ -430,6 +427,4 @@ void Document::indent()
   }
 }
 
-void Document::unindent()
-{
-}
+void Document::unindent() {}

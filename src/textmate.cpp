@@ -75,37 +75,6 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
       if (span.scope.find("string.quoted") == 0) {
         res.flags = res.flags | SCOPE_STRING;
       }
-#if 0
-      if (index == span.start) {
-        if (span.scope.find(".bracket") != -1) {
-          res.flags = res.flags | SCOPE_BRACKET;
-          if (span.scope.find(".begin") != -1) {
-            res.flags = res.flags | SCOPE_BEGIN;
-          }
-          if (span.scope.find(".end") != -1) {
-            res.flags = res.flags | SCOPE_END;
-          }
-        }
-        if (span.scope.find("variable") != -1) {
-          res.flags = res.flags | SCOPE_VARIABLE;
-        }
-        if (span.scope.find("constant") != -1) {
-          res.flags = res.flags | SCOPE_CONSTANT;
-        }
-        if (span.scope.find("keyword") != -1) {
-          res.flags = res.flags | SCOPE_KEYWORD;
-        }
-        if (span.scope.find("entity") != -1) {
-          res.flags = res.flags | SCOPE_ENTITY;
-          if (span.scope.find("entity.name.class") != -1) {
-            res.flags = res.flags | SCOPE_ENTITY_CLASS;
-          }
-          if (span.scope.find("entity.name.function") != -1) {
-            res.flags = res.flags | SCOPE_ENTITY_FUNCTION;
-          }
-        }
-      }
-#endif
     }
   }
   return res;
@@ -140,8 +109,8 @@ void Textmate::initialize(std::string path) {
   // }
 }
 
-theme_color_t theme_color_from_scope_fg_bg(char *scope, bool fore = true) {
-  theme_color_t res = {-1, 0, 0};
+rgba_t theme_color_from_scope_fg_bg(char *scope, bool fore = true) {
+  rgba_t res = {-1, 0, 0, 0};
   if (current_theme()) {
     style_t scoped = current_theme()->styles_for_scope(scope);
     color_info_t sclr = scoped.foreground;
@@ -172,9 +141,7 @@ theme_color_t theme_color_from_scope_fg_bg(char *scope, bool fore = true) {
   return res;
 }
 
-theme_color_t theme_color(char *scope) {
-  return theme_color_from_scope_fg_bg(scope);
-}
+rgba_t theme_color(char *scope) { return theme_color_from_scope_fg_bg(scope); }
 
 theme_info_t themeInfo;
 int themeInfoId = -1;
@@ -189,7 +156,7 @@ theme_info_t Textmate::theme_info() {
       current_theme()->theme_color("foreground", fg);
     }
     if (fg.is_blank()) {
-      theme_color_t tc = theme_color_from_scope_fg_bg(_default);
+      rgba_t tc = theme_color_from_scope_fg_bg(_default);
       fg.red = (float)tc.r / 255;
       fg.green = (float)tc.g / 255;
       fg.blue = (float)tc.b / 255;
@@ -207,7 +174,7 @@ theme_info_t Textmate::theme_info() {
       current_theme()->theme_color("background", bg);
     }
     if (bg.is_blank()) {
-      theme_color_t tc = theme_color_from_scope_fg_bg(_default, false);
+      rgba_t tc = theme_color_from_scope_fg_bg(_default, false);
       bg.red = (float)tc.r / 255;
       bg.green = (float)tc.g / 255;
       bg.blue = (float)tc.b / 255;
@@ -225,6 +192,26 @@ theme_info_t Textmate::theme_info() {
   sel.green *= 255;
   sel.blue *= 255;
 
+  color_info_t cmt;
+  if (current_theme()) {
+    // current_theme()->theme_color("comment", cmt);
+    style_t style = current_theme()->styles_for_scope("comment");
+    cmt = style.foreground;
+    if (cmt.is_blank()) {
+      current_theme()->theme_color("editor.foreground", cmt);
+    }
+    if (cmt.is_blank()) {
+      rgba_t tc = theme_color_from_scope_fg_bg(_default, false);
+      cmt.red = (float)tc.r / 255;
+      cmt.green = (float)tc.g / 255;
+      cmt.blue = (float)tc.b / 255;
+    }
+  }
+
+  cmt.red *= 255;
+  cmt.green *= 255;
+  cmt.blue *= 255;
+
   info.fg_r = fg.red;
   info.fg_g = fg.green;
   info.fg_b = fg.blue;
@@ -236,6 +223,11 @@ theme_info_t Textmate::theme_info() {
   info.sel_r = sel.red;
   info.sel_g = sel.green;
   info.sel_b = sel.blue;
+  info.sel_a = color_info_t::nearest_color_index(sel.red, sel.green, sel.blue);
+  info.cmt_r = cmt.red;
+  info.cmt_g = cmt.green;
+  info.cmt_b = cmt.blue;
+  info.cmt_a = color_info_t::nearest_color_index(cmt.red, cmt.green, cmt.blue);
 
   // why does this happen?
   if (info.sel_r < 0 && info.sel_g < 0 && info.sel_b < 0) {
@@ -463,8 +455,8 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
   if (idx > 0) {
     block->comment_block =
         (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT_BLOCK);
-    block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT)
-      && !block->comment_block;
+    block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT) &&
+                          !block->comment_block;
   }
 
   if (next_block) {

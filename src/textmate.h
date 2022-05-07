@@ -1,14 +1,17 @@
 #ifndef TE_TEXTMATE_H
 #define TE_TEXTMATE_H
 
+#include "theme.h"
 #include <string>
+#include <vector>
 
 class Block;
 
-struct theme_color_t {
-  int16_t r;
-  int16_t g;
-  int16_t b;
+struct rgba_t {
+  int r;
+  int g;
+  int b;
+  int a;
 };
 
 struct theme_info_t {
@@ -23,12 +26,17 @@ struct theme_info_t {
   int16_t sel_r;
   int16_t sel_g;
   int16_t sel_b;
+  int16_t sel_a;
+  int16_t cmt_r;
+  int16_t cmt_g;
+  int16_t cmt_b;
+  int16_t cmt_a;
 };
 
 struct textstyle_t {
-  int32_t start;
-  int32_t length;
-  int32_t flags;
+  int16_t start;
+  int16_t length;
+  int16_t flags;
   int16_t r;
   int16_t g;
   int16_t b;
@@ -43,16 +51,9 @@ struct textstyle_t {
   bool strike;
 };
 
-struct rgba_t {
-  int r;
-  int g;
-  int b;
-  int a;
-};
-
 struct span_info_t {
-  int start;
-  int length;
+  int16_t start;
+  int16_t length;
   rgba_t fg;
   rgba_t bg;
   bool bold;

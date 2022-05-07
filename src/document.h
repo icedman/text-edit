@@ -115,7 +115,8 @@ public:
   void unindent();
 
   std::vector<Range> words_in_line(int line);
-  std::vector<int> word_indices_in_line(int line, bool start = true, bool end = true);
+  std::vector<int> word_indices_in_line(int line, bool start = true,
+                                        bool end = true);
 };
 
 #endif // TE_DOCUMENT_H

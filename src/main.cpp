@@ -25,10 +25,15 @@
 #include "textmate.h"
 #include "theme.h"
 #include "utf8.h"
-#include "utf8.h"
+#include "view.h"
 
 std::vector<std::string> outputs;
 
+int fg = 0;
+int bg = 0;
+int hl = 0;
+int sel = 0;
+int cmt = 0;
 int width = 0;
 int height = 0;
 int theme_id = -1;
@@ -46,33 +51,31 @@ int lang_id = -1;
   cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
 
 int scroll_y = 0;
+int scroll_x = 0;
 int blink_y = 0;
 int blink_x = 0;
 
 Document doc;
 
-#define SELECTED_OFFSET   500
+#define SELECTED_OFFSET 500
 #define HIGHLIGHT_OFFSET 1000
 
-enum color_pair_e { NORMAL = 0, SELECTED };
+enum color_pair_e { NORMAL = 0, SELECTED, COMMENT };
 static std::map<int, int> colorMap;
 
 int color_index(int r, int g, int b) {
   return color_info_t::nearest_color_index(r, g, b);
 }
 
-int pair_for_color(int colorIdx, bool selected, bool highlighted = false) {
+int pair_for_color(int colorIdx, bool selected = false,
+                   bool highlighted = false) {
   if (selected && colorIdx == color_pair_e::NORMAL) {
     return color_pair_e::SELECTED;
   }
-  int offset = selected ? SELECTED_OFFSET : (highlighted ? HIGHLIGHT_OFFSET : 0);
+  int offset =
+      selected ? SELECTED_OFFSET : (highlighted ? HIGHLIGHT_OFFSET : 0);
   return colorMap[colorIdx + offset];
 }
-
-int fg = 0;
-int bg = 0;
-int hl = 0;
-int sel = 0;
 
 void update_colors() {
   colorMap.clear();
@@ -81,8 +84,9 @@ void update_colors() {
 
   fg = info.fg_a;
   bg = COLOR_BLACK;
+  cmt = color_index(info.cmt_r, info.cmt_g, info.cmt_b);
   sel = color_index(info.sel_r, info.sel_g, info.sel_b);
-  hl = color_index(info.sel_r/1.5, info.sel_g/1.5, info.sel_b/1.5);
+  hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
 
   theme_ptr theme = Textmate::theme();
 
@@ -91,6 +95,9 @@ void update_colors() {
   //---------------
   init_pair(color_pair_e::NORMAL, fg, bg);
   init_pair(color_pair_e::SELECTED, fg, sel);
+
+  theme->colorIndices[fg] = color_info_t({0, 0, 0, fg});
+  theme->colorIndices[cmt] = color_info_t({0, 0, 0, cmt});
 
   int idx = 32;
 
@@ -122,15 +129,45 @@ void update_colors() {
   }
 }
 
-void draw_text(int screen_row, const char *text) {
-  move(screen_row, 0);
-  clrtoeol();
+void draw_text(view_ptr view, const char *text, int align = 1) {
+  int margin = 2;
+  int off = 0;
+  switch (align) {
+  case 0:
+    // center
+    off = view->computed.w / 2 - strlen(text) / 2;
+    break;
+  case -1:
+    // left
+    off = margin;
+    break;
+  case 1:
+    // right
+    off = view->computed.w - strlen(text) - margin;
+    break;
+  }
+
+  int screen_col = view->computed.x + off;
+  int screen_row = view->computed.y;
+
+  int pair = pair_for_color(cmt);
+  attron(COLOR_PAIR(pair));
+
+  move(screen_row, view->computed.x);
+  for (int i = 0; i < view->computed.w; i++) {
+    addch(' ');
+  }
+  move(screen_row, screen_col);
   addstr(text);
+
+  attroff(COLOR_PAIR(pair));
 }
 
 void draw_text_line(int screen_row, int row, const char *text,
-                    std::vector<textstyle_t> &styles) {
-  move(screen_row, 0);
+                    std::vector<textstyle_t> &styles, view_ptr view) {
+  screen_row += view->computed.y;
+  int screen_col = view->computed.x;
+  move(screen_row, screen_col);
   clrtoeol();
 
   int l = strlen(text);
@@ -140,9 +177,12 @@ void draw_text_line(int screen_row, int row, const char *text,
 
   bool is_cursor_row = row == doc.cursor().start.row;
   int default_pair = pair_for_color(fg, false, is_cursor_row);
-  for (int i = 0; i < l; i++) {
+  for (int i = scroll_x; i < l; i++) {
     int pair = default_pair;
     bool selected = false;
+
+    if (i - scroll_x + 1 > view->computed.w)
+      break;
 
     // build...
     for (auto cursor : cursors) {
@@ -154,7 +194,7 @@ void draw_text_line(int screen_row, int row, const char *text,
           }
         }
         if (row == cursor.start.row && i == cursor.start.column) {
-          blink_x = i;
+          blink_x = screen_col + i - scroll_x;
           blink_y = screen_row;
           if (cursor.has_selection()) {
             if (!cursor.is_normalized()) {
@@ -172,7 +212,8 @@ void draw_text_line(int screen_row, int row, const char *text,
     for (auto s : styles) {
       if (s.start >= i && i < s.start + s.length) {
         int colorIdx = color_index(s.r, s.g, s.b);
-        pair = pair_for_color(colorIdx, selected, row == doc.cursor().start.row);
+        pair =
+            pair_for_color(colorIdx, selected, row == doc.cursor().start.row);
         pair = pair > 0 ? pair : default_pair;
         break;
       }
@@ -189,8 +230,8 @@ void draw_text_line(int screen_row, int row, const char *text,
   }
 
   if (is_cursor_row) {
-    move(screen_row, l);
-    for(int i=0;i<width-l;i++) {
+    move(screen_row, screen_col + l);
+    for (int i = 0; i < view->computed.w - l - scroll_x; i++) {
       attron(COLOR_PAIR(default_pair));
       addch(' ');
       attroff(COLOR_PAIR(default_pair));
@@ -198,20 +239,72 @@ void draw_text_line(int screen_row, int row, const char *text,
   }
 }
 
-void draw_text_buffer(TextBuffer &text, int scroll_y) {
+void draw_gutter_line(int screen_row, int row, const char *text,
+                      std::vector<textstyle_t> &styles, view_ptr view) {
+  screen_row += view->computed.y;
+  int screen_col = view->computed.x;
+  int l = strlen(text);
+
+  doc.cursor(); // ensure 1 cursor
+  std::vector<Cursor> &cursors = doc.cursors;
+
+  bool is_cursor_row = row == doc.cursor().start.row;
+  int pair = pair_for_color(is_cursor_row ? fg : cmt, is_cursor_row, false);
+  attron(COLOR_PAIR(pair));
+  move(screen_row, screen_col);
+  for (int i = 0; i < view->computed.w; i++) {
+    addch(' ');
+  }
+  move(screen_row, screen_col + view->computed.w - l - 1);
+  addstr(text);
+  attroff(COLOR_PAIR(pair));
+}
+
+void draw_gutter(TextBuffer &text, int scroll_y, view_ptr view) {
+  int vh = view->computed.h;
   int view_start = scroll_y;
-  int view_end = scroll_y + height;
+  int view_end = scroll_y + vh;
 
   // highlight
   int idx = 0;
-  int start = scroll_y - height / 2;
+  int start = scroll_y - vh / 2;
   if (start < 0)
     start = 0;
-  for (int i = 0; i < (height * 1.5); i++) {
+  for (int i = 0; i < (vh * 1.5); i++) {
     int line = start + i;
     BlockPtr block = doc.block_at(line);
-    if (!block)
+    if (!block) {
+      move(line + view->computed.y, view->computed.x);
+      clrtoeol();
       continue;
+    }
+
+    if (line >= view_start && line < view_end) {
+      std::stringstream s;
+      s << (line + 1);
+      draw_gutter_line(idx++, line, s.str().c_str(), block->styles, view);
+    }
+  }
+}
+
+void draw_text_buffer(TextBuffer &text, int scroll_y, view_ptr view) {
+  int vh = view->computed.h;
+  int view_start = scroll_y;
+  int view_end = scroll_y + vh;
+
+  // highlight
+  int idx = 0;
+  int start = scroll_y - vh / 2;
+  if (start < 0)
+    start = 0;
+  for (int i = 0; i < (vh * 1.5); i++) {
+    int line = start + i;
+    BlockPtr block = doc.block_at(line);
+    if (!block) {
+      move(line + view->computed.y, view->computed.x);
+      clrtoeol();
+      continue;
+    }
 
     optional<std::u16string> row = text.line_for_row(line);
     std::stringstream s;
@@ -227,7 +320,7 @@ void draw_text_buffer(TextBuffer &text, int scroll_y) {
     }
 
     if (line >= view_start && line < view_end) {
-      draw_text_line(idx++, line, s.str().c_str(), block->styles);
+      draw_text_line(idx++, line, s.str().c_str(), block->styles, view);
     }
   }
 }
@@ -245,15 +338,45 @@ bool get_dimensions() {
   return false;
 }
 
-int main(int argc, char **argv) {
-    const char* defaultTheme = "Monokai";
-    const char* argTheme = defaultTheme;
+void layout(view_ptr root) {
+  clear();
+  int margin = 0;
+  root->layout(
+      rect_t{margin, margin, width - (margin * 2), height - (margin * 2)});
+  root->render();
+}
 
-    for (int i = 0; i < argc - 1; i++) {
-        if (strcmp(argv[i], "-t") == 0) {
-            argTheme = argv[i + 1];
-        }
+int main(int argc, char **argv) {
+
+  view_ptr root = std::make_shared<column_t>();
+  view_ptr main = std::make_shared<row_t>();
+  view_ptr status = std::make_shared<row_t>();
+  view_ptr status_message = std::make_shared<row_t>();
+  view_ptr status_line_col = std::make_shared<row_t>();
+  status->children.push_back(status_message);
+  status->children.push_back(status_line_col);
+  status_message->flex = 3;
+  status_line_col->flex = 2;
+  root->children.push_back(main);
+  root->children.push_back(status);
+  view_ptr gutter = std::make_shared<view_t>();
+  view_ptr editor = std::make_shared<view_t>();
+  main->children.push_back(gutter);
+  main->children.push_back(editor);
+
+  main->flex = 1;
+  status->frame.h = 1;
+  gutter->frame.w = 8;
+  editor->flex = 1;
+
+  const char *defaultTheme = "Monokai";
+  const char *argTheme = defaultTheme;
+
+  for (int i = 0; i < argc - 1; i++) {
+    if (strcmp(argv[i], "-t") == 0) {
+      argTheme = argv[i + 1];
     }
+  }
 
   std::string file_path = "./tests/main.cpp";
   if (argc > 1) {
@@ -294,27 +417,55 @@ int main(int argc, char **argv) {
   // use_default_colors();
   update_colors();
 
-  curs_set(1);
+  curs_set(0);
   clear();
 
   get_dimensions();
-  
+
+  std::string message = "Welcome to text-edit";
+
+  int last_layout_size = -1;
   std::string lastKeySequence;
   bool running = true;
   while (running) {
     int size = text.extent().row;
-    draw_text_buffer(text, scroll_y);
+
+    if (last_layout_size != size) {
+      std::stringstream s;
+      s << "  ";
+      s << size;
+      gutter->frame.w = s.str().size();
+      layout(root);
+      last_layout_size = size;
+    }
+
+    draw_gutter(text, scroll_y, gutter);
+    draw_text_buffer(text, scroll_y, editor);
 
     Cursor cursor = doc.cursor();
 
+    // status
     std::stringstream status;
     status << " line ";
     status << (cursor.start.row + 1);
     status << " col ";
     status << (cursor.start.column + 1);
+    status << " ";
+    int p = (100 * cursor.start.row) / size;
+    if (p == 0) {
+      status << "top";
+    } else if (p == 100) {
+      status << "end";
+    } else {
+      status << p;
+      status << "%";
+    }
 
-    draw_text(height - 1, status.str().c_str());
+    draw_text(status_message, message.c_str(), -1);
+    draw_text(status_line_col, status.str().c_str());
+
     move(blink_y, blink_x);
+    curs_set(1);
     refresh();
 
     int ch = -1;
@@ -326,24 +477,30 @@ int main(int argc, char **argv) {
         break;
       }
       frames++;
-      if (frames == 1000 && get_dimensions())
+      if (frames == 1000 && get_dimensions()) {
+        layout(root);
         break;
+      }
       // if (frames == 500 && tree_sitter()) break;
       if (frames > 2000) {
         frames = 0;
       }
     }
 
+    curs_set(0);
+
     if (ch == 27) {
       keySequence = "escape";
       ch = -1;
     }
 
-    Command& cmd = command_from_keys(keySequence, lastKeySequence);
+    Command &cmd = command_from_keys(keySequence, lastKeySequence);
 
     if (keySequence != "") {
-      outputs.push_back(keySequence);
-      outputs.push_back(cmd.command);
+      message = cmd.command;
+      // message = keySequence;
+      //   outputs.push_back(keySequence);
+      //   outputs.push_back(cmd.command);
     }
 
     if (cmd.command == "quit") {
@@ -355,6 +512,13 @@ int main(int argc, char **argv) {
       continue;
     }
     lastKeySequence = "";
+
+    if (cmd.command == "save") {
+      message = "save - unimplemented";
+    }
+    if (cmd.command == "close") {
+      running = false;
+    }
 
     if (cmd.command == "cancel") {
       doc.clear_cursors();
@@ -456,20 +620,6 @@ int main(int argc, char **argv) {
 
     cursor = doc.cursor();
 
-    int lead = 0;
-    if (cursor.start.row >= scroll_y + (height - 2) - lead) {
-      scroll_y = -(height - 2) + cursor.start.row + lead;
-    }
-    if (scroll_y + lead > cursor.start.row) {
-      scroll_y = -lead + cursor.start.row;
-    }
-    if (scroll_y + height / 2 > size) {
-      scroll_y = size - height / 2;
-    }
-    if (scroll_y < 0) {
-      scroll_y = 0;
-    }
-
     if (keySequence == "enter") {
       keySequence = "";
       ch = '\n';
@@ -491,6 +641,35 @@ int main(int argc, char **argv) {
     }
     if (cmd.command == "delete") {
       doc.delete_text();
+    }
+
+    size = text.extent().row;
+    int lead = 0;
+    int hh = editor->computed.h;
+    if (cursor.start.row >= scroll_y + (hh - 1) - lead) {
+      scroll_y = -(hh - 1) + cursor.start.row + lead;
+    }
+    if (scroll_y + lead > cursor.start.row) {
+      scroll_y = -lead + cursor.start.row;
+    }
+    if (scroll_y + hh / 2 > size) {
+      scroll_y = size - hh / 2;
+    }
+    if (scroll_y < 0) {
+      scroll_y = 0;
+    }
+    int ww = editor->computed.w;
+    if (cursor.start.column >= scroll_x + (ww - 1) - lead) {
+      scroll_x = -(ww - 1) + cursor.start.column + lead;
+    }
+    if (scroll_x + lead > cursor.start.column) {
+      scroll_x = -lead + cursor.start.column;
+    }
+    if (scroll_x + ww / 2 > size) {
+      scroll_x = size - ww / 2;
+    }
+    if (scroll_x < 0) {
+      scroll_x = 0;
     }
   }
 

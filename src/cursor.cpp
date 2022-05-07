@@ -5,7 +5,8 @@ void Cursor::move_up(bool anchor) {
   if (start.row > 0) {
     start.row--;
   }
-  int l = *(*buffer).line_length_for_row(start.row);;
+  int l = *(*buffer).line_length_for_row(start.row);
+  ;
   if (start.column > l) {
     start.column = l;
   }
@@ -17,10 +18,11 @@ void Cursor::move_up(bool anchor) {
 void Cursor::move_down(bool anchor) {
   start.row++;
   int size = document->size();
-  if (start.row >= size) {
-    start.row = size - 1;
+  if (start.row > size) {
+    start.row = size;
   }
-  int l = *(*buffer).line_length_for_row(start.row);;
+  int l = *(*buffer).line_length_for_row(start.row);
+  ;
   if (start.column > l) {
     start.column = l;
   }
@@ -57,9 +59,14 @@ void Cursor::move_right(bool anchor) {
     return;
   }
   start.column++;
-  if (start.column > *(*buffer).line_length_for_row(start.row)) {
-    start.row++;
-    start.column = 0;
+  int l = *(*buffer).line_length_for_row(start.row);
+  if (start.column > l) {
+    if (start.row + 1 < document->size()) {
+      start.row++;
+      start.column = 0;
+    } else {
+      start.column = l;
+    }
   }
   if (!anchor) {
     end = start;
@@ -97,11 +104,11 @@ void Cursor::move_to_end_of_line(bool anchor) {
   }
 }
 
-void Cursor::move_to_previous_word(bool anchor)
-{
-  std::vector<int> indices = document->word_indices_in_line(start.row, false, true);
+void Cursor::move_to_previous_word(bool anchor) {
+  std::vector<int> indices =
+      document->word_indices_in_line(start.row, false, true);
   int target = 0;
-  for(auto i : indices) {
+  for (auto i : indices) {
     if (i >= start.column) {
       break;
     }
@@ -113,11 +120,11 @@ void Cursor::move_to_previous_word(bool anchor)
   }
 }
 
-void Cursor::move_to_next_word(bool anchor)
-{
-  std::vector<int> indices = document->word_indices_in_line(start.row, true, false);
+void Cursor::move_to_next_word(bool anchor) {
+  std::vector<int> indices =
+      document->word_indices_in_line(start.row, true, false);
   int target = 0;
-  for(auto i : indices) {
+  for (auto i : indices) {
     target = i;
     if (i > start.column) {
       break;
@@ -158,39 +165,36 @@ Cursor Cursor::normalized(bool force_flip) {
   return c;
 }
 
-void Cursor::selection_to_uppercase()
-{
+void Cursor::selection_to_uppercase() {
   Cursor cur = copy();
   if (!has_selection()) {
     move_right(true);
   }
   std::u16string str = selected_text();
-  std::transform(str.begin(), str.end(),str.begin(), toupper);
+  std::transform(str.begin(), str.end(), str.begin(), toupper);
   insert_text(str);
   copy_from(cur);
 }
 
-void Cursor::selection_to_lowercase()
-{
+void Cursor::selection_to_lowercase() {
   Cursor cur = copy();
   if (!has_selection()) {
     move_right(true);
   }
   std::u16string str = selected_text();
-  std::transform(str.begin(), str.end(),str.begin(), tolower);
+  std::transform(str.begin(), str.end(), str.begin(), tolower);
   insert_text(str);
   copy_from(cur);
 }
 
-void Cursor::select_word_under()
-{
+void Cursor::select_word_under() {
   std::vector<Range> words = document->words_in_line(start.row);
-  for(auto w : words) {
+  for (auto w : words) {
     Cursor cur = copy();
     cur.start = w.start;
     cur.end = w.end;
     if (cur.is_within(start.row, start.column)) {
-      start  = cur.start;
+      start = cur.start;
       end = cur.end;
       return;
     }
@@ -259,10 +263,6 @@ std::u16string Cursor::selected_text() {
   return buffer->text_in_range(normalized());
 }
 
-void Cursor::indent()
-{
-}
+void Cursor::indent() {}
 
-void Cursor::unindent()
-{
-}
+void Cursor::unindent() {}
