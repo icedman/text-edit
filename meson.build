@@ -180,5 +180,19 @@ executable('regex_test',
         superstring_includes
     ]
 )
+executable('keys_test',
+    'tests/keys_test.cpp',
+    'src/utf8.cpp',
+    'src/input.cpp',
+    'src/keybindings.cpp',
+    superstring_files,
+    onigmo_files,
+    include_directories: [
+        'src',
+        onigmo_includes,
+        superstring_includes
+    ],
+    dependencies: [ curses_dep ]
+)
 endif
 

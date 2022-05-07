@@ -60,6 +60,8 @@ public:
   std::vector<Cursor> cursors;
   std::vector<BlockPtr> blocks;
 
+  std::u16string tab_string;
+
   void initialize(std::u16string &str);
 
   Cursor &cursor();
@@ -81,7 +83,8 @@ public:
 
   void selection_to_uppercase();
   void selection_to_lowercase();
-  void select_word_under();
+  void select_word_from_cursor();
+  void add_cursor_from_selected_word();
   bool has_selection();
   void clear_selection();
   void clear_cursors();
@@ -107,6 +110,9 @@ public:
   BlockPtr previous_block(BlockPtr block);
   BlockPtr next_block(BlockPtr block);
   void update_blocks(int line, int count);
+
+  void indent();
+  void unindent();
 
   std::vector<Range> words_in_line(int line);
   std::vector<int> word_indices_in_line(int line, bool start = true, bool end = true);

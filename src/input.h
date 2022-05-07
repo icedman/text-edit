@@ -50,6 +50,7 @@ enum KEY_ACTION {
   K_PAGE_DOWN
 };
 
+int kbhit(int timeout = 500);
 int readKey(std::string &keySequence);
 
 #endif // TE_KEYINPUT_H;

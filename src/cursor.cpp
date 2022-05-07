@@ -5,6 +5,10 @@ void Cursor::move_up(bool anchor) {
   if (start.row > 0) {
     start.row--;
   }
+  int l = *(*buffer).line_length_for_row(start.row);;
+  if (start.column > l) {
+    start.column = l;
+  }
   if (!anchor) {
     end = start;
   }
@@ -15,6 +19,10 @@ void Cursor::move_down(bool anchor) {
   int size = document->size();
   if (start.row >= size) {
     start.row = size - 1;
+  }
+  int l = *(*buffer).line_length_for_row(start.row);;
+  if (start.column > l) {
+    start.column = l;
   }
   if (!anchor) {
     end = start;
@@ -152,20 +160,24 @@ Cursor Cursor::normalized(bool force_flip) {
 
 void Cursor::selection_to_uppercase()
 {
-  if (!has_selection()) return;
+  Cursor cur = copy();
+  if (!has_selection()) {
+    move_right(true);
+  }
   std::u16string str = selected_text();
   std::transform(str.begin(), str.end(),str.begin(), toupper);
-  Cursor cur = copy();
   insert_text(str);
   copy_from(cur);
 }
 
 void Cursor::selection_to_lowercase()
 {
-  if (!has_selection()) return;
+  Cursor cur = copy();
+  if (!has_selection()) {
+    move_right(true);
+  }
   std::u16string str = selected_text();
   std::transform(str.begin(), str.end(),str.begin(), tolower);
-  Cursor cur = copy();
   insert_text(str);
   copy_from(cur);
 }
@@ -245,4 +257,12 @@ void Cursor::delete_text(int number_of_characters) {
 
 std::u16string Cursor::selected_text() {
   return buffer->text_in_range(normalized());
+}
+
+void Cursor::indent()
+{
+}
+
+void Cursor::unindent()
+{
 }

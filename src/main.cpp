@@ -51,7 +51,9 @@ int blink_x = 0;
 
 Document doc;
 
-#define SELECTED_OFFSET 500
+#define SELECTED_OFFSET   500
+#define HIGHLIGHT_OFFSET 1000
+
 enum color_pair_e { NORMAL = 0, SELECTED };
 static std::map<int, int> colorMap;
 
@@ -59,15 +61,17 @@ int color_index(int r, int g, int b) {
   return color_info_t::nearest_color_index(r, g, b);
 }
 
-int pair_for_color(int colorIdx, bool selected) {
+int pair_for_color(int colorIdx, bool selected, bool highlighted = false) {
   if (selected && colorIdx == color_pair_e::NORMAL) {
     return color_pair_e::SELECTED;
   }
-  return colorMap[colorIdx + (selected ? SELECTED_OFFSET : 0)];
+  int offset = selected ? SELECTED_OFFSET : (highlighted ? HIGHLIGHT_OFFSET : 0);
+  return colorMap[colorIdx + offset];
 }
 
 int fg = 0;
 int bg = 0;
+int hl = 0;
 int sel = 0;
 
 void update_colors() {
@@ -78,6 +82,7 @@ void update_colors() {
   fg = info.fg_a;
   bg = COLOR_BLACK;
   sel = color_index(info.sel_r, info.sel_g, info.sel_b);
+  hl = color_index(info.sel_r/1.5, info.sel_g/1.5, info.sel_b/1.5);
 
   theme_ptr theme = Textmate::theme();
 
@@ -105,6 +110,16 @@ void update_colors() {
     }
     it++;
   }
+
+  it = theme->colorIndices.begin();
+  while (it != theme->colorIndices.end()) {
+    colorMap[it->first + HIGHLIGHT_OFFSET] = idx;
+    init_pair(idx++, it->first, hl);
+    if (it->first == sel) {
+      colorMap[it->first + HIGHLIGHT_OFFSET] = idx + 1;
+    }
+    it++;
+  }
 }
 
 void draw_text(int screen_row, const char *text) {
@@ -123,7 +138,8 @@ void draw_text_line(int screen_row, int row, const char *text,
   doc.cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc.cursors;
 
-  int default_pair = pair_for_color(fg, false);
+  bool is_cursor_row = row == doc.cursor().start.row;
+  int default_pair = pair_for_color(fg, false, is_cursor_row);
   for (int i = 0; i < l; i++) {
     int pair = default_pair;
     bool selected = false;
@@ -156,7 +172,7 @@ void draw_text_line(int screen_row, int row, const char *text,
     for (auto s : styles) {
       if (s.start >= i && i < s.start + s.length) {
         int colorIdx = color_index(s.r, s.g, s.b);
-        pair = pair_for_color(colorIdx, selected);
+        pair = pair_for_color(colorIdx, selected, row == doc.cursor().start.row);
         pair = pair > 0 ? pair : default_pair;
         break;
       }
@@ -170,6 +186,15 @@ void draw_text_line(int screen_row, int row, const char *text,
     attroff(A_REVERSE);
     attroff(A_BOLD);
     attroff(A_UNDERLINE);
+  }
+
+  if (is_cursor_row) {
+    move(screen_row, l);
+    for(int i=0;i<width-l;i++) {
+      attron(COLOR_PAIR(default_pair));
+      addch(' ');
+      attroff(COLOR_PAIR(default_pair));
+    }
   }
 }
 
@@ -221,16 +246,22 @@ bool get_dimensions() {
 }
 
 int main(int argc, char **argv) {
+    const char* defaultTheme = "Monokai";
+    const char* argTheme = defaultTheme;
+
+    for (int i = 0; i < argc - 1; i++) {
+        if (strcmp(argv[i], "-t") == 0) {
+            argTheme = argv[i + 1];
+        }
+    }
+
   std::string file_path = "./tests/main.cpp";
   if (argc > 1) {
     file_path = argv[argc - 1];
   }
 
   Textmate::initialize("/home/iceman/.editor/extensions/");
-  // theme_id = Textmate::load_theme("default");
-  theme_id = Textmate::load_theme(
-      "/home/iceman/.editor/extensions/dracula-theme.theme-dracula-2.24.2/"
-      "theme/dracula.json");
+  theme_id = Textmate::load_theme(argTheme);
   lang_id = Textmate::load_language(file_path);
 
   theme_info_t info = Textmate::theme_info();
@@ -244,9 +275,7 @@ int main(int argc, char **argv) {
   // TIMER_BEGIN
   optional<EncodingConversion> enc = transcoding_from("UTF-8");
   (*enc).decode(str, buffer.str().c_str(), buffer.str().size());
-  // str = string_to_u16string(buffer.str());
   // TIMER_END
-  // printf("time: %f\n------\n", cpu_time_used);
 
   TextBuffer &text = doc.buffer;
   doc.initialize(str);
@@ -313,6 +342,7 @@ int main(int argc, char **argv) {
     Command& cmd = command_from_keys(keySequence, lastKeySequence);
 
     if (keySequence != "") {
+      outputs.push_back(keySequence);
       outputs.push_back(cmd.command);
     }
 
@@ -345,23 +375,7 @@ int main(int argc, char **argv) {
       doc.paste();
     }
     if (cmd.command == "select_word") {
-      if (doc.cursor().has_selection()) {
-        bool normed = doc.cursor().is_normalized();
-        std::u16string res = doc.cursor().selected_text();
-        Cursor cur = doc.cursor().copy();
-        cur.move_right();
-        optional<Range> m = doc.find_from_cursor(res, cur);
-        if (m) {
-          std::u16string mt = doc.buffer.text_in_range(*m);
-          outputs.push_back(u16string_to_string(mt));
-          cur.start = (*m).start;
-          cur.end = (*m).end;
-          cur = cur.normalized(!normed);
-          doc.add_cursor(cur);
-        }
-      } else {
-        doc.select_word_under();
-      }
+      doc.add_cursor_from_selected_word();
     }
     if (cmd.command == "select_line") {
       doc.move_to_start_of_line();
@@ -373,69 +387,70 @@ int main(int argc, char **argv) {
     if (cmd.command == "selection_to_lowercase") {
       doc.selection_to_lowercase();
     }
-
-    if (cmd.command == "ctrl+e") {
-      const std::u16string k = u"incl";
-      const std::u16string j = u"";
-      std::vector<TextBuffer::SubsequenceMatch> res =
-          doc.buffer.find_words_with_subsequence_in_range(
-              k, k, Range::all_inclusive());
-      for (auto r : res) {
-        if (r.score < 10)
-          break;
-        std::stringstream ss;
-        ss << u16string_to_string(r.word);
-        ss << ":";
-        ss << r.score;
-        outputs.push_back(ss.str());
-      }
+    if (cmd.command == "indent") {
+      doc.indent();
+    }
+    if (cmd.command == "unindent") {
+      doc.unindent();
     }
 
-    bool anchor = false;
-    if (keySequence.starts_with("shift+")) {
-      anchor = true;
-      keySequence = keySequence.substr(6);
+    // if (cmd.command == "ctrl+e") {
+    //   const std::u16string k = u"incl";
+    //   const std::u16string j = u"";
+    //   std::vector<TextBuffer::SubsequenceMatch> res =
+    //       doc.buffer.find_words_with_subsequence_in_range(
+    //           k, k, Range::all_inclusive());
+    //   for (auto r : res) {
+    //     if (r.score < 10)
+    //       break;
+    //     std::stringstream ss;
+    //     ss << u16string_to_string(r.word);
+    //     ss << ":";
+    //     ss << r.score;
+    //     outputs.push_back(ss.str());
+    //   }
+    // }
+
+    if (cmd.command == "move_up") {
+      doc.move_up(cmd.params == "anchored");
+    }
+    if (cmd.command == "move_down") {
+      doc.move_down(cmd.params == "anchored");
+    }
+    if (cmd.command == "move_left") {
+      doc.move_left(cmd.params == "anchored");
+    }
+    if (cmd.command == "move_right") {
+      doc.move_right(cmd.params == "anchored");
     }
 
-    if (keySequence == "ctrl+up") {
+    if (cmd.command == "pageup") {
+      for (int i = 0; i < height; i++)
+        doc.move_up();
+    }
+    if (cmd.command == "pagedown") {
+      for (int i = 0; i < height; i++)
+        doc.move_down();
+    }
+    if (cmd.command == "move_to_start_of_line") {
+      doc.move_to_start_of_line();
+    }
+    if (cmd.command == "move_to_end_of_line") {
+      doc.move_to_end_of_line();
+    }
+
+    if (cmd.command == "add_cursor_and_move_up") {
       doc.add_cursor(doc.cursor());
       doc.cursor().move_up();
     }
-    if (keySequence == "ctrl+down") {
+    if (cmd.command == "add_cursor_and_move_down") {
       doc.add_cursor(doc.cursor());
       doc.cursor().move_down();
     }
-
-    if (keySequence == "up") {
-      doc.move_up(anchor);
-    }
-    if (keySequence == "down") {
-      doc.move_down(anchor);
-    }
-    if (keySequence == "left") {
-      doc.move_left(anchor);
-    }
-    if (keySequence == "right") {
-      doc.move_right(anchor);
-    }
-    if (keySequence == "pageup") {
-      for (int i = 0; i < height; i++)
-        doc.move_up(anchor);
-    }
-    if (keySequence == "pagedown") {
-      for (int i = 0; i < height; i++)
-        doc.move_down(anchor);
-    }
-    if (keySequence == "home") {
-      doc.move_to_start_of_line(anchor);
-    }
-    if (keySequence == "end") {
-      doc.move_to_end_of_line(anchor);
-    }
-    if (keySequence == "ctrl+left") {
+    if (cmd.command == "move_to_previous_word") {
       doc.move_to_previous_word();
     }
-    if (keySequence == "ctrl+right") {
+    if (cmd.command == "move_to_next_word") {
       doc.move_to_next_word();
     }
 
@@ -468,13 +483,13 @@ int main(int argc, char **argv) {
     }
 
     // delete
-    if (keySequence == "backspace") {
+    if (cmd.command == "backspace") {
       if (!doc.has_selection()) {
         doc.move_left();
       }
       doc.delete_text();
     }
-    if (keySequence == "delete") {
+    if (cmd.command == "delete") {
       doc.delete_text();
     }
   }

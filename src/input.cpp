@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 // if != 0, then there is data to be read on stdin
-int kbhit(int timeout = 500) {
+int kbhit(int timeout) {
   // timeout structure passed into select
   struct timeval tv;
   // fd_set passed into select
@@ -52,7 +52,7 @@ static int readMoreEscapeSequence(int c, std::string &keySequence) {
     return K_CTRL_ALT_;
   }
 
-  printf("escape+%d a:%d A:%d 0:%d 9:%d\n", c, 'a', 'A', '0', '9');
+  // printf("escape+%d a:%d A:%d 0:%d 9:%d\n", c, 'a', 'A', '0', '9');
 
   return K_ESC;
 }
@@ -65,7 +65,7 @@ static int readEscapeSequence(std::string &keySequence) {
   int wait = 500;
 
   if (!kbhit(wait)) {
-    return K_ESC;
+      return K_ESC;
   }
   read(STDIN_FILENO, &seq[0], 1);
 
@@ -259,7 +259,7 @@ static int readEscapeSequence(std::string &keySequence) {
       keySequence = "end";
       return K_END_KEY;
     }
-    printf("escape+%c+%c\n", seq[0], seq[1]);
+    // printf("escape+%c+%c\n", seq[0], seq[1]);
   }
 
   /* ESC O sequences. */
@@ -311,8 +311,7 @@ int readKey(std::string &keySequence) {
         } else {
           keySequence += '?';
         }
-
-        printf("ctrl+%d\n", c);
+        // printf("ctrl+%d\n", c);
         return c;
       }
 

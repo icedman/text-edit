@@ -35,6 +35,9 @@ public:
   void insert_text(std::u16string text);
   void delete_text(int number_of_characters = 1);
 
+  void indent();
+  void unindent();
+  
   std::u16string selected_text();
 };
 

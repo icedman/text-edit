@@ -13,8 +13,29 @@ std::map<std::string, Command> commands = {
     // {"ctrl+g", Command{"jump_to_line", ""}},
     {"ctrl+z", Command{"undo", ""}},
     // {"ctrl+shift+z", Command{"redo", ""}},
-    // {"ctrl+]", Command{"indent", ""}},
-    // {"ctrl+[", Command{"unindent", ""}},
+
+    {"backspace", Command{"backspace", ""}},
+    {"delete", Command{"delete", ""}},
+
+    {"ctrl+up",     Command{"add_cursor_and_move_up", ""}},
+    {"ctrl+down",   Command{"add_cursor_and_move_down", ""}},
+    {"ctrl+left",   Command{"move_to_previous_word", ""}},
+    {"ctrl+right",  Command{"move_to_next_word", ""}},
+    {"up",          Command{"move_up", ""}},
+    {"down",        Command{"move_down", ""}},
+    {"left",        Command{"move_left", ""}},
+    {"right",       Command{"move_right", ""}},
+    {"pageup",      Command{"pageup", ""}},
+    {"pagedown",    Command{"pagedown", ""}},
+    {"home",        Command{"move_to_start_of_line", ""}},
+    {"end",         Command{"move_to_end_of_line", ""}},
+    {"shift+up",    Command{"move_up", "anchored"}},
+    {"shift+down",  Command{"move_down", "anchored"}},
+    {"shift+left",  Command{"move_left", "anchored"}},
+    {"shift+right", Command{"move_right", "anchored"}},
+
+    {"ctrl+k+ctrl+p", Command{"indent", ""}},
+    {"ctrl+k+ctrl+o", Command{"unindent", ""}},
     // {"ctrl+/", Command{"toggle_comment", ""}},
     {"ctrl+c", Command{"copy", ""}},
     {"ctrl+x", Command{"cut", ""}},
@@ -45,11 +66,12 @@ std::map<std::string, Command> commands = {
 
 Command& command_from_keys(std::string keys, std::string previous)
 {
+    std::map<std::string, Command> *cmds = & commands;
     if (previous != "") {
         keys = previous + "+" + keys;
     }
-    if (commands.contains(keys)) {
-        return commands[keys];
+    if (cmds->contains(keys)) {
+        return (*cmds)[keys];
     }
-    return commands["unknown"];
+    return (*cmds)["unknown"];
 }

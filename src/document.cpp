@@ -132,12 +132,33 @@ void Document::move_to_next_word(bool anchor)
   }
 }
 
-void Document::select_word_under()
+void Document::select_word_from_cursor()
 {
   for (auto &c : cursors) {
     c.clear_selection();
     c.select_word_under();
   }  
+}
+
+void Document::add_cursor_from_selected_word()
+{
+  if (cursor().has_selection()) {
+    bool normed = cursor().is_normalized();
+    std::u16string res = cursor().selected_text();
+    Cursor cur = cursor().copy();
+    cur.move_right();
+    optional<Range> m = find_from_cursor(res, cur);
+    if (m) {
+      std::u16string mt = buffer.text_in_range(*m);
+      outputs.push_back(u16string_to_string(mt));
+      cur.start = (*m).start;
+      cur.end = (*m).end;
+      cur = cur.normalized(!normed);
+      add_cursor(cur);
+    }
+  } else {
+    select_word_from_cursor();
+  }
 }
 
 void Document::selection_to_uppercase()
@@ -243,6 +264,18 @@ void Document::end_cursor_markers(Cursor &cur) {
 int Document::size() { return buffer.extent().row; }
 
 BlockPtr Document::block_at(int line) {
+  if (tab_string.length() == 0) {
+      optional<std::u16string> row = buffer.line_for_row(line);
+      if (row) {
+        for(int i=0; i<(*row).length(); i++) {
+          if ((*row)[i] == u' ') {
+            tab_string += u" ";
+          } else {
+            break;
+          }
+        }
+      }
+  }
   if (line >= blocks.size() || line < 0)
     return NULL;
   if (blocks[line]->line != line) {
@@ -283,6 +316,9 @@ BlockPtr Document::next_block(BlockPtr block) {
 
 void Document::update_blocks(int line, int count) {
   BlockPtr block = block_at(line);
+  if (!block) {
+    return;
+  }
   block->make_dirty();
 
   // todo... detect change at run_highlighter
@@ -377,4 +413,23 @@ std::vector<int> Document::word_indices_in_line(int line, bool start, bool end) 
     }
   }
   return indices;
+}
+
+void Document::indent()
+{
+  std::map<int, bool> lines;
+  for(auto c : cursors) {
+    lines[c.start.row] = true;
+  }
+  for(auto m : lines) {
+    Cursor c = cursor().copy();
+    c.start.row = m.first;
+    c.start.column = 0;
+    c.end = c.start;
+    c.insert_text(tab_string);
+  }
+}
+
+void Document::unindent()
+{
 }
