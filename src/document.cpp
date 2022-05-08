@@ -4,17 +4,6 @@
 #include <core/regex.h>
 #include <sstream>
 
-Request::Request(TextBuffer *buffer)
-    : ready(false), mark_dispose(false), snapshot(NULL) {
-  snapshot = buffer->create_snapshot();
-}
-
-Request::~Request() {
-  if (snapshot) {
-    delete snapshot;
-  }
-}
-
 Block::Block()
     : line(0), comment_line(false), comment_block(false),
       prev_comment_block(false), dirty(true) {}
@@ -428,3 +417,72 @@ void Document::indent() {
 }
 
 void Document::unindent() {}
+
+optional<Range> Document::subsequence_range() {
+  Cursor cur = cursor().normalized();
+  std::vector<int> indices = word_indices_in_line(cur.start.row, true, true);
+  for (int i = 0; i < indices.size(); i += 2) {
+    Range range =
+        Range{{cur.start.row, indices[i]}, {cur.start.row, indices[i + 1]}};
+    if (range.end.column == cur.end.column) {
+      return range;
+    }
+    if (range.start.column > cur.start.column)
+      break;
+  }
+  return optional<Range>();
+}
+
+std::u16string Document::subsequence_text() {
+  optional<Range> range = subsequence_range();
+  if (range) {
+    return buffer.text_in_range(*range);
+  }
+  return u"";
+}
+
+void Document::run_autocomplete() {
+  if (cursors.size() == 1) {
+    std::u16string sub = subsequence_text();
+    if (sub.size() < 3)
+      return;
+    if (autocomplete_substring != sub) {
+      autocomplete_substring = sub;
+      if (autocompletes.find(sub) != autocompletes.end()) {
+        if (autocompletes[sub] != nullptr) {
+          autocompletes[sub]->state = AutoComplete::State::Ready;
+          return;
+        }
+      }
+
+      AutoCompletePtr autocomplete = std::make_shared<AutoComplete>(sub);
+      autocomplete->document = this;
+      autocomplete->buffer = &buffer;
+      autocomplete->snapshot = buffer.create_snapshot();
+      autocompletes[sub] = autocomplete;
+      AutoComplete::run(autocomplete.get());
+    }
+  }
+}
+
+AutoCompletePtr Document::autocomplete() {
+  if (cursors.size() == 1) {
+    if (autocompletes.find(autocomplete_substring) != autocompletes.end()) {
+      if (autocompletes[autocomplete_substring]->state !=
+              AutoComplete::State::Loading &&
+          autocompletes[autocomplete_substring]->matches.size() > 0) {
+        return autocompletes[autocomplete_substring];
+      }
+    }
+  }
+
+  // remove disposables
+  return nullptr;
+}
+
+void Document::clear_autocomplete(bool force) {
+  std::u16string sub = subsequence_text();
+  if (force || sub != autocomplete_substring) {
+    autocomplete_substring = u"";
+  }
+}

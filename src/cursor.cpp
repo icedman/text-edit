@@ -137,11 +137,12 @@ void Cursor::move_to_next_word(bool anchor) {
 }
 
 Cursor Cursor::copy() { return Cursor{start, end, buffer, document}; }
+
 void Cursor::copy_from(Cursor cursor) {
   start = cursor.start;
   end = cursor.end;
-  buffer = cursor.buffer;
-  document = cursor.document;
+  buffer = cursor.buffer ? cursor.buffer : buffer;
+  document = cursor.document ? cursor.document : document;
 }
 
 bool Cursor::is_normalized() {

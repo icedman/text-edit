@@ -7,21 +7,10 @@
 #include <string>
 #include <vector>
 
+#include "autocomplete.h"
 #include "cursor.h"
 #include "parse.h"
 #include "textmate.h"
-
-class Request {
-public:
-  Request(TextBuffer *buffer);
-  ~Request();
-
-  bool ready;
-  bool mark_dispose;
-  TextBuffer::Snapshot *snapshot;
-};
-
-typedef std::shared_ptr<Request> RequestPtr;
 
 class Block {
 public:
@@ -51,7 +40,6 @@ public:
 
   std::vector<std::string> outputs;
 
-  std::vector<RequestPtr> subsequence;
   std::u16string clipboard_data;
 
   TextBuffer buffer;
@@ -61,6 +49,9 @@ public:
   std::vector<BlockPtr> blocks;
 
   std::u16string tab_string;
+
+  std::u16string autocomplete_substring;
+  std::map<std::u16string, AutoCompletePtr> autocompletes;
 
   void initialize(std::u16string &str);
 
@@ -92,6 +83,8 @@ public:
   void begin_cursor_markers(Cursor &cursor);
   void end_cursor_markers(Cursor &cursor);
 
+  std::u16string subsequence_text();
+  optional<Range> subsequence_range();
   std::u16string selected_text();
   optional<Range> find_from_cursor(std::u16string text, Cursor cursor);
 
@@ -117,6 +110,10 @@ public:
   std::vector<Range> words_in_line(int line);
   std::vector<int> word_indices_in_line(int line, bool start = true,
                                         bool end = true);
+
+  void run_autocomplete();
+  void clear_autocomplete(bool force = false);
+  AutoCompletePtr autocomplete();
 };
 
 #endif // TE_DOCUMENT_H

@@ -325,6 +325,51 @@ void draw_text_buffer(TextBuffer &text, int scroll_y, view_ptr view) {
   }
 }
 
+void draw_autocomplete(AutoCompletePtr autocomplete) {
+  int row = 0;
+  int def = pair_for_color(cmt, false, true);
+  int sel = pair_for_color(fg, true, false);
+
+  int w = 0;
+  int h = 0;
+
+  // get dimensions
+  for (auto m : autocomplete->matches) {
+    if (w < m.string.size()) {
+      w = m.string.size();
+    }
+    h++;
+    if (h > 10)
+      break;
+  }
+
+  int offset_row = 0;
+  int screen_col = blink_x - doc.autocomplete_substring.size();
+
+  if (blink_x + w > width) {
+    screen_col = blink_x - w;
+  }
+  if (blink_y + 2 + h > height) {
+    offset_row = -(h + 1);
+  }
+
+  for (auto m : autocomplete->matches) {
+    int pair = autocomplete->selected == row ? sel : def;
+    int screen_row = blink_y + 1 + row++;
+    std::string text = u16string_to_string(m.string);
+    attron(COLOR_PAIR(pair));
+    move(screen_row + offset_row, screen_col);
+    for (int i = 0; i < w; i++) {
+      addch(' ');
+    }
+    move(screen_row + offset_row, screen_col);
+    addstr(text.c_str());
+    attroff(COLOR_PAIR(pair));
+    if (row > 10)
+      break;
+  }
+}
+
 bool get_dimensions() {
   static struct winsize ws;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
@@ -426,6 +471,7 @@ int main(int argc, char **argv) {
 
   int last_layout_size = -1;
   std::string lastKeySequence;
+  bool did_insert = false;
   bool running = true;
   while (running) {
     int size = text.extent().row;
@@ -464,6 +510,11 @@ int main(int argc, char **argv) {
     draw_text(status_message, message.c_str(), -1);
     draw_text(status_line_col, status.str().c_str());
 
+    AutoCompletePtr autocomplete = doc.autocomplete();
+    if (autocomplete) {
+      draw_autocomplete(autocomplete);
+    }
+
     move(blink_y, blink_x);
     curs_set(1);
     refresh();
@@ -477,11 +528,31 @@ int main(int argc, char **argv) {
         break;
       }
       frames++;
-      if (frames == 1000 && get_dimensions()) {
+
+      // background tasks
+
+      // check autocomplete
+      if (frames == 100) {
+        autocomplete = doc.autocomplete();
+        if (autocomplete &&
+            autocomplete->state != AutoComplete::State::Consumed) {
+          autocomplete->state = AutoComplete::State::Consumed;
+          break;
+        }
+      }
+      if (frames == 1000 && did_insert) {
+        doc.run_autocomplete();
+        did_insert = false;
+        break;
+      }
+
+      // check dimensions
+      if (frames == 1500 && get_dimensions()) {
         layout(root);
         break;
       }
-      // if (frames == 500 && tree_sitter()) break;
+
+      // loop
       if (frames > 2000) {
         frames = 0;
       }
@@ -492,6 +563,35 @@ int main(int argc, char **argv) {
     if (ch == 27) {
       keySequence = "escape";
       ch = -1;
+    }
+
+    if (autocomplete) {
+      if (keySequence == "up") {
+        if (autocomplete->selected > 0) {
+          autocomplete->selected--;
+        }
+        keySequence = "";
+        ch = -1;
+      }
+      if (keySequence == "down") {
+        if (autocomplete->selected + 1 < autocomplete->matches.size()) {
+          autocomplete->selected++;
+        }
+        keySequence = "";
+        ch = -1;
+      }
+      if (keySequence == "enter") {
+        keySequence = "";
+        ch = -1;
+        optional<Range> range = doc.subsequence_range();
+        if (range) {
+          std::u16string selected =
+              autocomplete->matches[autocomplete->selected].string;
+          doc.clear_cursors();
+          doc.cursor().copy_from(Cursor{(*range).start, (*range).end});
+          doc.insert_text(selected);
+        }
+      }
     }
 
     Command &cmd = command_from_keys(keySequence, lastKeySequence);
@@ -522,6 +622,7 @@ int main(int argc, char **argv) {
 
     if (cmd.command == "cancel") {
       doc.clear_cursors();
+      doc.clear_autocomplete(true);
     }
 
     if (cmd.command == "undo") {
@@ -557,23 +658,6 @@ int main(int argc, char **argv) {
     if (cmd.command == "unindent") {
       doc.unindent();
     }
-
-    // if (cmd.command == "ctrl+e") {
-    //   const std::u16string k = u"incl";
-    //   const std::u16string j = u"";
-    //   std::vector<TextBuffer::SubsequenceMatch> res =
-    //       doc.buffer.find_words_with_subsequence_in_range(
-    //           k, k, Range::all_inclusive());
-    //   for (auto r : res) {
-    //     if (r.score < 10)
-    //       break;
-    //     std::stringstream ss;
-    //     ss << u16string_to_string(r.word);
-    //     ss << ":";
-    //     ss << r.score;
-    //     outputs.push_back(ss.str());
-    //   }
-    // }
 
     if (cmd.command == "move_up") {
       doc.move_up(cmd.params == "anchored");
@@ -626,10 +710,16 @@ int main(int argc, char **argv) {
     }
 
     // input
+    did_insert = false;
     if (keySequence == "" && ch != -1) {
       std::u16string text = u"x";
       text[0] = ch;
       doc.insert_text(text);
+      did_insert = true;
+    }
+
+    if (!did_insert) {
+      doc.clear_autocomplete();
     }
 
     // delete
