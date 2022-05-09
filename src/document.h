@@ -11,6 +11,7 @@
 #include "cursor.h"
 #include "parse.h"
 #include "textmate.h"
+#include "treesitter.h"
 
 class Block {
 public:
@@ -52,6 +53,7 @@ public:
 
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;
+  std::vector<TreeSitterPtr> treesitters;
 
   void initialize(std::u16string &str);
 
@@ -114,6 +116,9 @@ public:
   void run_autocomplete();
   void clear_autocomplete(bool force = false);
   AutoCompletePtr autocomplete();
+
+  void run_treesitter();
+  TreeSitterPtr treesitter();
 };
 
 #endif // TE_DOCUMENT_H

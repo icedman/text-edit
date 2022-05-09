@@ -131,6 +131,30 @@ tm_parser_includes = [
     'libs/tm-parser/textmate/extensions'
 ]
 
+tree_sitter_files = [
+    'libs/tree-sitter/lib/src/alloc.c',
+    'libs/tree-sitter/lib/src/get_changed_ranges.c',
+    'libs/tree-sitter/lib/src/language.c',
+    'libs/tree-sitter/lib/src/lexer.c',
+    'libs/tree-sitter/lib/src/node.c',
+    'libs/tree-sitter/lib/src/parser.c',
+    'libs/tree-sitter/lib/src/query.c',
+    'libs/tree-sitter/lib/src/stack.c',
+    'libs/tree-sitter/lib/src/subtree.c',
+    'libs/tree-sitter/lib/src/tree.c',
+    'libs/tree-sitter/lib/src/tree_cursor.c'
+]
+
+tree_sitter_includes = [
+    'libs/tree-sitter/lib/include'
+]
+
+tree_sitter_grammar_files = []
+
+tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-c/src/parser.c'
+#tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-javascript/src/parser.c',
+#tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-javascript/src/scanner.c',
+
 if get_option('build_textmate')
     add_global_arguments('-DTEXTMATE_ENABLED=1', language: 'cpp')
 endif
@@ -152,19 +176,23 @@ executable('text-edit',
     'src/keybindings.cpp',
     'src/utf8.cpp',
     'src/textmate.cpp',
+    'src/treesitter.cpp',
     'src/view.cpp',
     superstring_files,
     onigmo_files,
     jsoncpp_files,
     tinyxml2_files,
     tm_parser_files,
+    tree_sitter_files,
+    tree_sitter_grammar_files,
     include_directories: [
         'src',
         tm_parser_includes,
         jsoncpp_includes,
         tinyxml2_includes,
         onigmo_includes,
-        superstring_includes
+        superstring_includes,
+        tree_sitter_includes
     ],
     dependencies: [ curses_dep ]
 )

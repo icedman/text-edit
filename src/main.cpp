@@ -84,6 +84,8 @@ void update_colors() {
 
   fg = info.fg_a;
   bg = COLOR_BLACK;
+  // bg = color_index(info.bg_r, info.bg_g, info.bg_b);
+  // bg = color_index(255, 0, 0);
   cmt = color_index(info.cmt_r, info.cmt_g, info.cmt_b);
   sel = color_index(info.sel_r, info.sel_g, info.sel_b);
   hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
@@ -343,8 +345,15 @@ void draw_autocomplete(AutoCompletePtr autocomplete) {
       break;
   }
 
+  int margin = 1;
+  w += (margin*2);
+
+  optional<Range> sub = doc.subsequence_range();
   int offset_row = 0;
-  int screen_col = blink_x - doc.autocomplete_substring.size();
+  int screen_col = blink_x;
+  if (sub) {
+    screen_col -= ((*sub).end.column - (*sub).start.column);
+  }
 
   if (blink_x + w > width) {
     screen_col = blink_x - w;
@@ -352,6 +361,8 @@ void draw_autocomplete(AutoCompletePtr autocomplete) {
   if (blink_y + 2 + h > height) {
     offset_row = -(h + 1);
   }
+
+  screen_col -= margin;
 
   for (auto m : autocomplete->matches) {
     int pair = autocomplete->selected == row ? sel : def;
@@ -362,11 +373,49 @@ void draw_autocomplete(AutoCompletePtr autocomplete) {
     for (int i = 0; i < w; i++) {
       addch(' ');
     }
-    move(screen_row + offset_row, screen_col);
+    move(screen_row + offset_row, screen_col + margin);
     addstr(text.c_str());
     attroff(COLOR_PAIR(pair));
     if (row > 10)
       break;
+  }
+}
+
+void draw_tree_sitter(view_ptr sitter, TreeSitterPtr treesitter, Cursor cursor) {
+  std::vector<TSNode> nodes = treesitter->walk(cursor.start.row, cursor.start.column);
+  
+  int def = pair_for_color(cmt, false, false);
+  int sel = pair_for_color(fg, false, true);
+
+  int row = 0;
+  for(auto node : nodes) {
+    const char *type = ts_node_type(node);
+    TSPoint start = ts_node_start_point(node);
+    TSPoint end = ts_node_end_point(node);
+
+    std::stringstream ss;
+    ss << start.row;
+    ss << ",";
+    ss << start.column;
+    ss << "-";
+    ss << end.row;
+    ss << ",";
+    ss << end.column;
+    ss << " ";
+    ss << type;
+
+    int pair = def;
+    Cursor cur = cursor.copy();
+    cur.start = {start.row, start.column};
+    cur.end = {end.row, end.column};
+    if (cur.start.row == cursor.start.row &&
+      cur.is_within(cursor.start.row, cursor.start.column)) {
+      pair = sel;
+    }
+    attron(COLOR_PAIR(pair));
+    move(sitter->computed.y + row++, sitter->computed.x);
+    addstr(ss.str().c_str());
+    attroff(COLOR_PAIR(pair));
   }
 }
 
@@ -409,10 +458,14 @@ int main(int argc, char **argv) {
   main->children.push_back(gutter);
   main->children.push_back(editor);
 
+  view_ptr sitter = std::make_shared<view_t>();
+  main->children.push_back(sitter);
+  
   main->flex = 1;
   status->frame.h = 1;
   gutter->frame.w = 8;
-  editor->flex = 1;
+  editor->flex = 3;
+  sitter->flex = 1;
 
   const char *defaultTheme = "Monokai";
   const char *argTheme = defaultTheme;
@@ -470,8 +523,9 @@ int main(int argc, char **argv) {
   std::string message = "Welcome to text-edit";
 
   int last_layout_size = -1;
-  std::string lastKeySequence;
-  bool did_insert = false;
+  std::string last_key_sequence;
+  bool request_autocomplete = false;
+  bool request_treesitter = false;
   bool running = true;
   while (running) {
     int size = text.extent().row;
@@ -515,15 +569,20 @@ int main(int argc, char **argv) {
       draw_autocomplete(autocomplete);
     }
 
+    TreeSitterPtr treesitter = doc.treesitter();
+    if (treesitter) {
+      draw_tree_sitter(sitter, treesitter, doc.cursor());
+    }
+
     move(blink_y, blink_x);
     curs_set(1);
     refresh();
 
     int ch = -1;
-    std::string keySequence;
+    std::string key_sequence;
     int frames = 0;
     while (running) {
-      ch = readKey(keySequence);
+      ch = readKey(key_sequence);
       if (ch != -1) {
         break;
       }
@@ -532,22 +591,29 @@ int main(int argc, char **argv) {
       // background tasks
 
       // check autocomplete
-      if (frames == 100) {
-        autocomplete = doc.autocomplete();
-        if (autocomplete &&
-            autocomplete->state != AutoComplete::State::Consumed) {
-          autocomplete->state = AutoComplete::State::Consumed;
-          break;
-        }
-      }
-      if (frames == 1000 && did_insert) {
-        doc.run_autocomplete();
-        did_insert = false;
+      if (frames == 500 && request_treesitter) {
+        doc.run_treesitter();
+        request_treesitter = false;
         break;
       }
 
+      if (frames == 750 && request_autocomplete) {
+        doc.clear_autocomplete(true);
+        doc.run_autocomplete();
+        request_autocomplete = false;
+        break;
+      }
+      if (frames == 1500) {
+        autocomplete = doc.autocomplete();
+        if (autocomplete &&
+            autocomplete->state != AutoComplete::State::Consumed) {
+          autocomplete->set_consumed();
+          break;
+        }
+      }
+
       // check dimensions
-      if (frames == 1500 && get_dimensions()) {
+      if (frames == 1800 && get_dimensions()) {
         layout(root);
         break;
       }
@@ -561,27 +627,27 @@ int main(int argc, char **argv) {
     curs_set(0);
 
     if (ch == 27) {
-      keySequence = "escape";
+      key_sequence = "escape";
       ch = -1;
     }
 
     if (autocomplete) {
-      if (keySequence == "up") {
+      if (key_sequence == "up") {
         if (autocomplete->selected > 0) {
           autocomplete->selected--;
         }
-        keySequence = "";
+        key_sequence = "";
         ch = -1;
       }
-      if (keySequence == "down") {
+      if (key_sequence == "down") {
         if (autocomplete->selected + 1 < autocomplete->matches.size()) {
           autocomplete->selected++;
         }
-        keySequence = "";
+        key_sequence = "";
         ch = -1;
       }
-      if (keySequence == "enter") {
-        keySequence = "";
+      if (key_sequence == "enter") {
+        key_sequence = "";
         ch = -1;
         optional<Range> range = doc.subsequence_range();
         if (range) {
@@ -592,14 +658,20 @@ int main(int argc, char **argv) {
           doc.insert_text(selected);
         }
       }
+      if (key_sequence == "left" ||
+          key_sequence == "right") {
+        doc.clear_autocomplete(true);
+        key_sequence = "";
+        ch = -1;
+      }
     }
 
-    Command &cmd = command_from_keys(keySequence, lastKeySequence);
+    Command &cmd = command_from_keys(key_sequence, last_key_sequence);
 
-    if (keySequence != "") {
+    if (key_sequence != "") {
       message = cmd.command;
-      // message = keySequence;
-      //   outputs.push_back(keySequence);
+      // message = key_sequence;
+      //   outputs.push_back(key_sequence);
       //   outputs.push_back(cmd.command);
     }
 
@@ -608,10 +680,10 @@ int main(int argc, char **argv) {
     }
 
     if (cmd.command == "await") {
-      lastKeySequence = keySequence;
+      last_key_sequence = key_sequence;
       continue;
     }
-    lastKeySequence = "";
+    last_key_sequence = "";
 
     if (cmd.command == "save") {
       message = "save - unimplemented";
@@ -641,6 +713,11 @@ int main(int argc, char **argv) {
     }
     if (cmd.command == "select_word") {
       doc.add_cursor_from_selected_word();
+    }
+    if (cmd.command == "select_all") {
+      doc.clear_cursors();
+      doc.move_to_start_of_document();
+      doc.move_to_end_of_document(true);
     }
     if (cmd.command == "select_line") {
       doc.move_to_start_of_line();
@@ -704,21 +781,21 @@ int main(int argc, char **argv) {
 
     cursor = doc.cursor();
 
-    if (keySequence == "enter") {
-      keySequence = "";
+    if (key_sequence == "enter") {
+      key_sequence = "";
       ch = '\n';
     }
 
     // input
-    did_insert = false;
-    if (keySequence == "" && ch != -1) {
+    if (key_sequence == "" && ch != -1) {
       std::u16string text = u"x";
       text[0] = ch;
       doc.insert_text(text);
-      did_insert = true;
+      request_autocomplete = true;
+      request_treesitter = true;
     }
 
-    if (!did_insert) {
+    if (!request_autocomplete && autocomplete) {
       doc.clear_autocomplete();
     }
 
@@ -728,9 +805,11 @@ int main(int argc, char **argv) {
         doc.move_left();
       }
       doc.delete_text();
+      request_treesitter = true;
     }
     if (cmd.command == "delete") {
       doc.delete_text();
+      request_treesitter = true;
     }
 
     size = text.extent().row;

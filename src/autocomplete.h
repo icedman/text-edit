@@ -15,7 +15,6 @@ public:
 
   std::u16string prefix;
   State state;
-  TextBuffer *buffer;
   TextBuffer::Snapshot *snapshot;
   Document *document;
 
@@ -27,10 +26,14 @@ public:
 
   std::vector<Match> matches;
   int selected;
-
+  int ttl;
   int thread_id;
 
   static void run(AutoComplete *autocomplete);
+  void set_ready();
+  void set_consumed();
+  void keep_alive();
+  bool is_disposable();
 };
 
 typedef std::shared_ptr<AutoComplete> AutoCompletePtr;

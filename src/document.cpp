@@ -4,6 +4,8 @@
 #include <core/regex.h>
 #include <sstream>
 
+#define TS_DOC_SIZE_LIMIT 10000
+
 Block::Block()
     : line(0), comment_line(false), comment_block(false),
       prev_comment_block(false), dirty(true) {}
@@ -27,6 +29,8 @@ void Document::initialize(std::u16string &str) {
   for (int i = 0; i < l + 1; i++) {
     add_block_at(i + 1);
   }
+
+  run_treesitter();
 }
 
 void Document::snap() {
@@ -457,7 +461,6 @@ void Document::run_autocomplete() {
 
       AutoCompletePtr autocomplete = std::make_shared<AutoComplete>(sub);
       autocomplete->document = this;
-      autocomplete->buffer = &buffer;
       autocomplete->snapshot = buffer.create_snapshot();
       autocompletes[sub] = autocomplete;
       AutoComplete::run(autocomplete.get());
@@ -471,18 +474,71 @@ AutoCompletePtr Document::autocomplete() {
       if (autocompletes[autocomplete_substring]->state !=
               AutoComplete::State::Loading &&
           autocompletes[autocomplete_substring]->matches.size() > 0) {
+        // autocompletes[autocomplete_substring]->set_ready();
+        autocompletes[autocomplete_substring]->keep_alive();
         return autocompletes[autocomplete_substring];
       }
     }
   }
-
-  // remove disposables
   return nullptr;
 }
 
 void Document::clear_autocomplete(bool force) {
-  std::u16string sub = subsequence_text();
-  if (force || sub != autocomplete_substring) {
+  if (force || autocomplete_substring != subsequence_text()) {
     autocomplete_substring = u"";
   }
+
+  if (autocompletes.size() < 20) {
+    return;
+  }
+
+  std::vector<std::u16string> disposables;
+
+  // dispose
+  for(auto it : autocompletes) {
+    AutoCompletePtr ac = it.second;
+    if (ac && ac->is_disposable()) {
+      disposables.push_back(it.first);
+    }
+  }
+
+  for(auto d : disposables) {
+    autocompletes.erase(d);
+  }
+}
+
+void Document::run_treesitter()
+{
+  // disable
+  if (size() > TS_DOC_SIZE_LIMIT) return;
+
+  TreeSitterPtr treesitter = std::make_shared<TreeSitter>();
+  treesitter->document = this;
+  treesitter->snapshot = buffer.create_snapshot();
+  treesitters.push_back(treesitter);
+  TreeSitter::run(treesitter.get());
+}
+
+TreeSitterPtr Document::treesitter() {
+  if (treesitters.size() == 0) {
+    return nullptr;
+  }
+  TreeSitterPtr front = treesitters.front();
+  if (front->state == TreeSitter::State::Loading || !front->tree) {
+    front = nullptr;
+  } 
+  TreeSitterPtr back = treesitters.back();
+  if (back->state == TreeSitter::State::Loading || !back->tree) {
+    back = nullptr;
+  }
+
+  if (front && back && front != back && front->state != TreeSitter::State::Loading) {
+    treesitters.erase(treesitters.begin());
+  }
+
+  if (size() > TS_DOC_SIZE_LIMIT && treesitters.size()) {
+    back = nullptr;
+    treesitters.erase(treesitters.begin());
+  }
+  return back;
 }

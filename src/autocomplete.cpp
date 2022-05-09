@@ -6,9 +6,11 @@
 
 #include "document.h"
 
+#define AUTOCOMPLETE_TTL 32
+
 AutoComplete::AutoComplete(std::u16string p)
-    : prefix(p), state(State::Loading), snapshot(0), buffer(0), document(0),
-      selected(0) {}
+    : prefix(p), state(State::Loading), snapshot(0), document(0),
+      selected(0), ttl(AUTOCOMPLETE_TTL) {}
 
 AutoComplete::~AutoComplete() {
   if (snapshot) {
@@ -16,14 +18,37 @@ AutoComplete::~AutoComplete() {
   }
 }
 
+void AutoComplete::set_ready()
+{
+  state = AutoComplete::State::Ready;
+}
+
+void AutoComplete::set_consumed()
+{
+  state = AutoComplete::State::Consumed;
+}
+
+void AutoComplete::keep_alive()
+{
+  ttl = AUTOCOMPLETE_TTL;
+}
+
+bool AutoComplete::is_disposable()
+{
+  if (state < AutoComplete::State::Ready) {
+    return false;
+  }
+  return --ttl <= 0;
+}
+
 void *autocomplete_thread(void *arg) {
   AutoComplete *autocomplete = (AutoComplete *)arg;
   Document *doc = autocomplete->document;
-  TextBuffer *buffer = autocomplete->buffer;
+  TextBuffer::Snapshot *snapshot = autocomplete->snapshot;
 
   std::u16string k = autocomplete->prefix;
   std::vector<TextBuffer::SubsequenceMatch> res =
-      buffer->find_words_with_subsequence_in_range(k, k,
+      snapshot->find_words_with_subsequence_in_range(k, k,
                                                    Range::all_inclusive());
   for (auto r : res) {
     if (r.score < 0)
@@ -35,8 +60,9 @@ void *autocomplete_thread(void *arg) {
       break;
   }
 
-  autocomplete->state = AutoComplete::State::Ready;
   autocomplete->thread_id = 0;
+  autocomplete->set_ready();
+  return NULL;
 }
 
 void AutoComplete::run(AutoComplete *autocomplete) {
