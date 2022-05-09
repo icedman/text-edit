@@ -29,7 +29,7 @@ typedef std::vector<view_ptr> view_list;
 struct view_t {
   view_t()
       : frame({0, 0, 0, 0}), constraint({0, 0, 0, 0}), computed({0, 0, 0, 0}),
-        flex(0), direction(0) {}
+        flex(0), direction(0), show(true) {}
 
   rect_t frame;      // preferred
   rect_t constraint; // set by parent
@@ -37,6 +37,7 @@ struct view_t {
 
   int flex;
   int direction;
+  bool show;
 
   view_list children;
 

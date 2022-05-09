@@ -254,13 +254,15 @@ int load_icons(std::string path) {
 }
 
 int Textmate::load_language(std::string path) {
-  language_info_ptr lange = language_from_file(path, extensions);
-  if (lange != NULL) {
-    languages.emplace_back(lange);
+  language_info_ptr lang = language_from_file(path, extensions);
+  if (lang != NULL) {
+    languages.emplace_back(lang);
     return languages.size() - 1;
   }
   return 0;
 }
+
+language_info_ptr Textmate::language_info(int id) { return languages[id]; }
 
 void dump_tokens(std::map<size_t, scope::scope_t> &scopes) {
   std::map<size_t, scope::scope_t>::iterator it = scopes.begin();

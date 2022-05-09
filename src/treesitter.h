@@ -20,12 +20,11 @@ public:
   State state;
   TextBuffer::Snapshot *snapshot;
   Document *document;
-  std::string content;
 
   int ttl;
-  int thread_id;
-
   TSTree *tree;
+  std::string lang_id;
+  int thread_id;
 
   static void run(TreeSitter *treesitter);
   void set_ready();

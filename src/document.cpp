@@ -5,6 +5,7 @@
 #include <sstream>
 
 #define TS_DOC_SIZE_LIMIT 10000
+#define TS_FIND_FROM_CURSOR_LIMIT 1000
 
 Block::Block()
     : line(0), comment_line(false), comment_block(false),
@@ -28,6 +29,24 @@ void Document::initialize(std::u16string &str) {
   int l = size();
   for (int i = 0; i < l + 1; i++) {
     add_block_at(i + 1);
+
+    // detect tab size
+    if (tab_string.size() == 0) {
+      optional<std::u16string> row = buffer.line_for_row(i);
+      if (row) {
+        for (int j = 0; j < (*row).length(); j++) {
+          if ((*row)[j] == u' ') {
+            tab_string += u" ";
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  if (tab_string.size() == 0) {
+    tab_string = u"  ";
   }
 
   run_treesitter();
@@ -193,6 +212,18 @@ std::u16string Document::selected_text() {
   return res;
 }
 
+std::vector<int> Document::selected_lines() {
+  std::vector<int> res;
+  for (auto c : cursors) {
+    Cursor cc = c.normalized();
+    for (int i = 0; i < cc.end.row - cc.start.row + 1; i++) {
+      int row = cc.start.row + i;
+      res.push_back(row);
+    }
+  }
+  return res;
+}
+
 void Document::undo() {
   if (!snapshot)
     return;
@@ -253,18 +284,6 @@ void Document::end_cursor_markers(Cursor &cur) {
 int Document::size() { return buffer.extent().row; }
 
 BlockPtr Document::block_at(int line) {
-  if (tab_string.length() == 0) {
-    optional<std::u16string> row = buffer.line_for_row(line);
-    if (row) {
-      for (int i = 0; i < (*row).length(); i++) {
-        if ((*row)[i] == u' ') {
-          tab_string += u" ";
-        } else {
-          break;
-        }
-      }
-    }
-  }
   if (line >= blocks.size() || line < 0)
     return NULL;
   if (blocks[line]->line != line) {
@@ -291,7 +310,6 @@ BlockPtr Document::erase_block_at(int line) {
   auto it = blocks.begin() + line;
   BlockPtr block = *it;
   blocks.erase(it);
-  outputs.push_back("remove");
   return block;
 }
 
@@ -332,14 +350,33 @@ void Document::update_blocks(int line, int count) {
   // outputs.push_back(s.str());
 }
 
+// todo ... move to thread?
 optional<Range> Document::find_from_cursor(std::u16string text, Cursor cursor) {
+  optional<Range> range;
   std::u16string error;
+
   Regex regex(text.c_str(), &error, false, false);
-  Range range = cursor.normalized();
-  range.end = buffer.extent();
-  optional<Range> res;
-  res = buffer.find(regex, range);
-  return res;
+
+  Regex::MatchData data(regex);
+  Regex::MatchResult res = {Regex::MatchResult::None, 0, 0};
+
+  for (int i = 0; i < TS_FIND_FROM_CURSOR_LIMIT; i++) {
+    int line = cursor.start.row + i + 1;
+    optional<std::u16string> row = buffer.line_for_row(line);
+    if (!row) {
+      break;
+    }
+    char16_t *_str = (char16_t *)(*row).c_str();
+    res = regex.match(_str, strlen((char *)_str), data);
+    if (res.type == Regex::MatchResult::Full) {
+      range = Range({line, res.start_offset}, {line, res.end_offset});
+      break;
+    }
+  }
+
+  return range;
+
+  // return buffer.find(regex, range);
 }
 
 void Document::copy() { clipboard_data = selected_text(); }
@@ -407,20 +444,39 @@ std::vector<int> Document::word_indices_in_line(int line, bool start,
 }
 
 void Document::indent() {
-  std::map<int, bool> lines;
-  for (auto c : cursors) {
-    lines[c.start.row] = true;
-  }
+  std::vector<int> lines = selected_lines();
   for (auto m : lines) {
     Cursor c = cursor().copy();
-    c.start.row = m.first;
+    c.start.row = m;
     c.start.column = 0;
     c.end = c.start;
+    c.id = -1;
+    begin_cursor_markers(c);
     c.insert_text(tab_string);
+    end_cursor_markers(c);
   }
 }
 
-void Document::unindent() {}
+void Document::unindent() {
+  std::vector<int> lines = selected_lines();
+  for (auto m : lines) {
+    Cursor c = cursor().copy();
+    optional<std::u16string> row = buffer.line_for_row(m);
+    if (!row) {
+      continue;
+    }
+    if (!(*row).starts_with(tab_string)) {
+      continue;
+    }
+    c.start.row = m;
+    c.start.column = 0;
+    c.end = c.start;
+    c.id = -1;
+    begin_cursor_markers(c);
+    c.delete_text(tab_string.length());
+    end_cursor_markers(c);
+  }
+}
 
 optional<Range> Document::subsequence_range() {
   Cursor cur = cursor().normalized();
@@ -495,22 +551,22 @@ void Document::clear_autocomplete(bool force) {
   std::vector<std::u16string> disposables;
 
   // dispose
-  for(auto it : autocompletes) {
+  for (auto it : autocompletes) {
     AutoCompletePtr ac = it.second;
     if (ac && ac->is_disposable()) {
       disposables.push_back(it.first);
     }
   }
 
-  for(auto d : disposables) {
+  for (auto d : disposables) {
     autocompletes.erase(d);
   }
 }
 
-void Document::run_treesitter()
-{
+void Document::run_treesitter() {
   // disable
-  if (size() > TS_DOC_SIZE_LIMIT) return;
+  if (size() > TS_DOC_SIZE_LIMIT)
+    return;
 
   TreeSitterPtr treesitter = std::make_shared<TreeSitter>();
   treesitter->document = this;
@@ -526,13 +582,14 @@ TreeSitterPtr Document::treesitter() {
   TreeSitterPtr front = treesitters.front();
   if (front->state == TreeSitter::State::Loading || !front->tree) {
     front = nullptr;
-  } 
+  }
   TreeSitterPtr back = treesitters.back();
   if (back->state == TreeSitter::State::Loading || !back->tree) {
     back = nullptr;
   }
 
-  if (front && back && front != back && front->state != TreeSitter::State::Loading) {
+  if (front && back && front != back &&
+      front->state != TreeSitter::State::Loading) {
     treesitters.erase(treesitters.begin());
   }
 
@@ -541,4 +598,81 @@ TreeSitterPtr Document::treesitter() {
     treesitters.erase(treesitters.begin());
   }
   return back;
+}
+
+optional<Cursor> Document::block_cursor(Cursor cursor) {
+  optional<Cursor> res;
+  TreeSitterPtr tree = treesitter();
+  if (!tree) {
+    return res;
+  }
+
+  std::vector<TSNode> nodes =
+      treesitter()->walk(cursor.start.row, cursor.start.column);
+
+  if (nodes.size() == 0) {
+    return res;
+  }
+
+  TSNode deepest = nodes.back();
+  Cursor base = cursor.copy().normalized();
+  Cursor cur = cursor.copy();
+
+  while (deepest.id) {
+    const char *type = ts_node_type(deepest);
+    if (strlen(type) == 0 || type[0] == '\n')
+      return res;
+
+    TSPoint start = ts_node_start_point(deepest);
+    TSPoint end = ts_node_end_point(deepest);
+    cur.start = {start.row, start.column};
+    cur.end = {end.row, end.column};
+    res = cur;
+    if (ts_node_child_count(deepest) > 0 && cur.start.row != cur.end.row) {
+      break;
+    }
+    TSNode p = ts_node_parent(deepest);
+    if (!p.id) {
+      break;
+    }
+    deepest = p;
+  }
+  return res;
+}
+
+optional<Cursor> Document::span_cursor(Cursor cursor) {
+  optional<Cursor> res;
+  TreeSitterPtr tree = treesitter();
+  if (!tree) {
+    return res;
+  }
+
+  std::vector<TSNode> nodes =
+      treesitter()->walk(cursor.start.row, cursor.start.column);
+
+  if (nodes.size() == 0) {
+    return res;
+  }
+
+  TSNode deepest = nodes.back();
+  Cursor base = cursor.copy().normalized();
+  Cursor cur = cursor.copy();
+
+  while (deepest.id) {
+    TSPoint start = ts_node_start_point(deepest);
+    TSPoint end = ts_node_end_point(deepest);
+    cur.start = {start.row, start.column};
+    cur.end = {end.row, end.column};
+    res = cur;
+    if (ts_node_child_count(deepest) > 0) {
+      break;
+    }
+    break;
+    TSNode p = ts_node_parent(deepest);
+    if (!p.id) {
+      break;
+    }
+    deepest = p;
+  }
+  return res;
 }

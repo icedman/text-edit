@@ -132,6 +132,8 @@ void update_colors() {
 }
 
 void draw_text(view_ptr view, const char *text, int align = 1) {
+  if (!view->show)
+    return;
   int margin = 2;
   int off = 0;
   switch (align) {
@@ -165,8 +167,67 @@ void draw_text(view_ptr view, const char *text, int align = 1) {
   attroff(COLOR_PAIR(pair));
 }
 
+void draw_gutter_line(int screen_row, int row, const char *text,
+                      std::vector<textstyle_t> &styles, view_ptr view) {
+  screen_row += view->computed.y;
+  int screen_col = view->computed.x;
+  int l = strlen(text);
+
+  doc.cursor(); // ensure 1 cursor
+  std::vector<Cursor> &cursors = doc.cursors;
+
+  bool is_cursor_row = row == doc.cursor().start.row;
+  int pair = pair_for_color(is_cursor_row ? fg : cmt, is_cursor_row, false);
+  attron(COLOR_PAIR(pair));
+  move(screen_row, screen_col);
+  for (int i = 0; i < view->computed.w; i++) {
+    addch(' ');
+  }
+  move(screen_row, screen_col + view->computed.w - l - 1);
+  addstr(text);
+  attroff(COLOR_PAIR(pair));
+}
+
+void draw_gutter(TextBuffer &text, int scroll_y, view_ptr view) {
+  if (!view->show)
+    return;
+  int vh = view->computed.h;
+  int view_start = scroll_y;
+  int view_end = scroll_y + vh;
+
+  // highlight
+  int idx = 0;
+  int start = scroll_y - vh / 2;
+  if (start < 0)
+    start = 0;
+  for (int i = 0; i < (vh * 1.5); i++) {
+    int line = start + i;
+    BlockPtr block = doc.block_at(line);
+    if (!block) {
+      move(line + view->computed.y, view->computed.x);
+      clrtoeol();
+      continue;
+    }
+
+    if (line >= view_start && line < view_end) {
+      std::stringstream s;
+      s << (line + 1);
+      draw_gutter_line(idx++, line, s.str().c_str(), block->styles, view);
+    }
+  }
+}
+
 void draw_text_line(int screen_row, int row, const char *text,
                     std::vector<textstyle_t> &styles, view_ptr view) {
+
+  optional<Cursor> block_cursor = doc.block_cursor(doc.cursor());
+  if (block_cursor) {
+    if ((*block_cursor).start.row == (*block_cursor).end.row) {
+      block_cursor = optional<Cursor>();
+    }
+  }
+  // optional<Cursor> span_cursor = doc.span_cursor(doc.cursor());
+
   screen_row += view->computed.y;
   int screen_col = view->computed.x;
   move(screen_row, screen_col);
@@ -176,6 +237,8 @@ void draw_text_line(int screen_row, int row, const char *text,
 
   doc.cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc.cursors;
+
+  int edge = pair_for_color(fg, true, false);
 
   bool is_cursor_row = row == doc.cursor().start.row;
   int default_pair = pair_for_color(fg, false, is_cursor_row);
@@ -221,6 +284,18 @@ void draw_text_line(int screen_row, int row, const char *text,
       }
     }
 
+    if (block_cursor) {
+      if ((*block_cursor).is_edge(row, i)) {
+        pair = edge;
+      }
+    }
+
+    // if (span_cursor) {
+    //   if ((*span_cursor).is_edge(row, i)) {
+    //     attron(A_UNDERLINE);
+    //   }
+    // }
+
     attron(COLOR_PAIR(pair));
     addch(ch);
     attroff(COLOR_PAIR(pair));
@@ -241,55 +316,9 @@ void draw_text_line(int screen_row, int row, const char *text,
   }
 }
 
-void draw_gutter_line(int screen_row, int row, const char *text,
-                      std::vector<textstyle_t> &styles, view_ptr view) {
-  screen_row += view->computed.y;
-  int screen_col = view->computed.x;
-  int l = strlen(text);
-
-  doc.cursor(); // ensure 1 cursor
-  std::vector<Cursor> &cursors = doc.cursors;
-
-  bool is_cursor_row = row == doc.cursor().start.row;
-  int pair = pair_for_color(is_cursor_row ? fg : cmt, is_cursor_row, false);
-  attron(COLOR_PAIR(pair));
-  move(screen_row, screen_col);
-  for (int i = 0; i < view->computed.w; i++) {
-    addch(' ');
-  }
-  move(screen_row, screen_col + view->computed.w - l - 1);
-  addstr(text);
-  attroff(COLOR_PAIR(pair));
-}
-
-void draw_gutter(TextBuffer &text, int scroll_y, view_ptr view) {
-  int vh = view->computed.h;
-  int view_start = scroll_y;
-  int view_end = scroll_y + vh;
-
-  // highlight
-  int idx = 0;
-  int start = scroll_y - vh / 2;
-  if (start < 0)
-    start = 0;
-  for (int i = 0; i < (vh * 1.5); i++) {
-    int line = start + i;
-    BlockPtr block = doc.block_at(line);
-    if (!block) {
-      move(line + view->computed.y, view->computed.x);
-      clrtoeol();
-      continue;
-    }
-
-    if (line >= view_start && line < view_end) {
-      std::stringstream s;
-      s << (line + 1);
-      draw_gutter_line(idx++, line, s.str().c_str(), block->styles, view);
-    }
-  }
-}
-
 void draw_text_buffer(TextBuffer &text, int scroll_y, view_ptr view) {
+  if (!view->show)
+    return;
   int vh = view->computed.h;
   int view_start = scroll_y;
   int view_end = scroll_y + vh;
@@ -346,7 +375,7 @@ void draw_autocomplete(AutoCompletePtr autocomplete) {
   }
 
   int margin = 1;
-  w += (margin*2);
+  w += (margin * 2);
 
   optional<Range> sub = doc.subsequence_range();
   int offset_row = 0;
@@ -381,14 +410,35 @@ void draw_autocomplete(AutoCompletePtr autocomplete) {
   }
 }
 
-void draw_tree_sitter(view_ptr sitter, TreeSitterPtr treesitter, Cursor cursor) {
-  std::vector<TSNode> nodes = treesitter->walk(cursor.start.row, cursor.start.column);
-  
+void draw_tree_sitter(view_ptr view, TreeSitterPtr treesitter, Cursor cursor) {
+  if (!view->show)
+    return;
+  std::vector<TSNode> nodes =
+      treesitter->walk(cursor.start.row, cursor.start.column);
+
   int def = pair_for_color(cmt, false, false);
   int sel = pair_for_color(fg, false, true);
 
   int row = 0;
-  for(auto node : nodes) {
+  optional<Cursor> block_cursor = doc.block_cursor(doc.cursor());
+  if (block_cursor) {
+    std::stringstream ss;
+    ss << "[";
+    ss << (*block_cursor).start.row;
+    ss << ",";
+    ss << (*block_cursor).start.column;
+    ss << "-";
+    ss << (*block_cursor).end.row;
+    ss << ",";
+    ss << (*block_cursor).end.column;
+    ss << "]";
+    attron(COLOR_PAIR(def));
+    move(view->computed.y + row++, view->computed.x);
+    addstr(ss.str().substr(0, view->computed.w).c_str());
+    attroff(COLOR_PAIR(def));
+  }
+
+  for (auto node : nodes) {
     const char *type = ts_node_type(node);
     TSPoint start = ts_node_start_point(node);
     TSPoint end = ts_node_end_point(node);
@@ -409,12 +459,12 @@ void draw_tree_sitter(view_ptr sitter, TreeSitterPtr treesitter, Cursor cursor) 
     cur.start = {start.row, start.column};
     cur.end = {end.row, end.column};
     if (cur.start.row == cursor.start.row &&
-      cur.is_within(cursor.start.row, cursor.start.column)) {
+        cur.is_within(cursor.start.row, cursor.start.column)) {
       pair = sel;
     }
     attron(COLOR_PAIR(pair));
-    move(sitter->computed.y + row++, sitter->computed.x);
-    addstr(ss.str().c_str());
+    move(view->computed.y + row++, view->computed.x);
+    addstr(ss.str().substr(0, view->computed.w).c_str());
     attroff(COLOR_PAIR(pair));
   }
 }
@@ -460,12 +510,13 @@ int main(int argc, char **argv) {
 
   view_ptr sitter = std::make_shared<view_t>();
   main->children.push_back(sitter);
-  
+
   main->flex = 1;
   status->frame.h = 1;
   gutter->frame.w = 8;
   editor->flex = 3;
   sitter->flex = 1;
+  sitter->show = false;
 
   const char *defaultTheme = "Monokai";
   const char *argTheme = defaultTheme;
@@ -484,6 +535,7 @@ int main(int argc, char **argv) {
   Textmate::initialize("/home/iceman/.editor/extensions/");
   theme_id = Textmate::load_theme(argTheme);
   lang_id = Textmate::load_language(file_path);
+  doc.language = Textmate::language_info(lang_id);
 
   theme_info_t info = Textmate::theme_info();
 
@@ -545,24 +597,30 @@ int main(int argc, char **argv) {
     Cursor cursor = doc.cursor();
 
     // status
-    std::stringstream status;
-    status << " line ";
-    status << (cursor.start.row + 1);
-    status << " col ";
-    status << (cursor.start.column + 1);
-    status << " ";
-    int p = (100 * cursor.start.row) / size;
-    if (p == 0) {
-      status << "top";
-    } else if (p == 100) {
-      status << "end";
-    } else {
-      status << p;
-      status << "%";
+    std::stringstream ss;
+    ss << doc.language->id;
+    ss << "  ";
+    ss << " line ";
+    ss << (cursor.start.row + 1);
+    ss << " col ";
+    ss << (cursor.start.column + 1);
+    ss << "  ";
+    if (size > 0) {
+      int p = (100 * cursor.start.row) / size;
+      if (p == 0) {
+        ss << "top";
+      } else if (p == 100) {
+        ss << "end";
+      } else {
+        ss << p;
+        ss << "%";
+      }
     }
 
-    draw_text(status_message, message.c_str(), -1);
-    draw_text(status_line_col, status.str().c_str());
+    if (status->show) {
+      draw_text(status_message, message.c_str(), -1);
+      draw_text(status_line_col, ss.str().c_str());
+    }
 
     AutoCompletePtr autocomplete = doc.autocomplete();
     if (autocomplete) {
@@ -658,8 +716,7 @@ int main(int argc, char **argv) {
           doc.insert_text(selected);
         }
       }
-      if (key_sequence == "left" ||
-          key_sequence == "right") {
+      if (key_sequence == "left" || key_sequence == "right") {
         doc.clear_autocomplete(true);
         key_sequence = "";
         ch = -1;
@@ -723,6 +780,16 @@ int main(int argc, char **argv) {
       doc.move_to_start_of_line();
       doc.move_to_end_of_line(true);
     }
+    if (cmd.command == "expand_cursor") {
+      Cursor cur = doc.cursor().normalized();
+      optional<Cursor> block_cursor = doc.block_cursor(cur);
+      if (block_cursor) {
+        doc.clear_cursors();
+        doc.cursor().copy_from(*block_cursor);
+      }
+    }
+    if (cmd.command == "contract_cursor") {
+    }
     if (cmd.command == "selection_to_uppercase") {
       doc.selection_to_uppercase();
     }
@@ -777,6 +844,19 @@ int main(int argc, char **argv) {
     }
     if (cmd.command == "move_to_next_word") {
       doc.move_to_next_word();
+    }
+
+    if (cmd.command == "toggle_tree_sitter") {
+      sitter->show = !sitter->show;
+      layout(root);
+    }
+    if (cmd.command == "toggle_gutter") {
+      gutter->show = !gutter->show;
+      layout(root);
+    }
+    if (cmd.command == "toggle_status") {
+      status->show = !status->show;
+      layout(root);
     }
 
     cursor = doc.cursor();
@@ -847,10 +927,8 @@ int main(int argc, char **argv) {
   for (auto k : outputs) {
     printf(">%s\n", k.c_str());
   }
-  for (auto k : doc.outputs) {
-    printf(">%s\n", k.c_str());
-  }
 
   // printf("%s\n", doc.buffer.get_dot_graph().c_str());
+  printf(">%s\n", doc.language->id.c_str());
   return 0;
 }

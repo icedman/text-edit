@@ -1,0 +1,83 @@
+{
+   "binary_file_patterns" : [
+      "*.jpg",
+      "*.jpeg",
+      "*.png",
+      "*.gif",
+      "*.ttf",
+      "*.tga",
+      "*.dds",
+      "*.ico",
+      "*.eot",
+      "*.pdf",
+      "*.swf",
+      "*.jar",
+      "*.zip",
+      "*.mid",
+      "*.mp3",
+      "*.mp4"
+   ],
+   "file_exclude_patterns" : [
+      "*.pyc",
+      "*.pyo",
+      "*.exe",
+      "*.dll",
+      "*.obj",
+      "*.o",
+      "*.a",
+      "*.lib",
+      "*.so",
+      "*.dylib",
+      "*.ncb",
+      "*.sdf",
+      "*.suo",
+      "*.pdb",
+      "*.idb",
+      ".DS_Store",
+      "*.class",
+      "*.psd",
+      "*.db"
+   ],
+   "folder_exclude_patterns" : [
+      ".svn",
+      ".git",
+      ".hg",
+      "CVS",
+      "node_modules"
+   ],
+   "git_author_email" : "m4rvin2005@gmail.com",
+   "git_author_name" : "icedman",
+   "gutter" : true,
+   "icon_theme" : "material-icon-theme",
+   "last_project" : "",
+   "last_project_path" : "",
+   "minimap" : true,
+   "repositories" : [
+      {
+         "identityKey" : "/home/iceman/.ssh/id_rsa_icedman_github",
+         "name" : "ashlar-code",
+         "passphrase" : "",
+         "path" : "/home/iceman/Developer/Projects/flutter/flutter_tm_code/ashlar-code",
+         "protocol" : "git",
+         "repository" : "git@github.com:icedman/ashlar-code"
+      },
+      {
+         "identityKey" : "",
+         "name" : "iceman@127.0.0.1",
+         "passphrase" : "aes::BWS/sNXuKsMT7vzwkLz1Tw==",
+         "path" : "/home/iceman",
+         "protocol" : "sftp",
+         "repository" : "iceman@127.0.0.1"
+      }
+   ],
+   "sftp" : true,
+   "sidebar" : true,
+   "sidebar_width" : 400,
+   "statusbar" : true,
+   "tab_size" : 4,
+   "tab_to_spaces" : true,
+   "tabbar" : true,
+   "theme" : "Dracula",
+   "version" : "1.1",
+   "word_wrap" : true
+}

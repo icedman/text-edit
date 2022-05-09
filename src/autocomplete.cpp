@@ -9,8 +9,8 @@
 #define AUTOCOMPLETE_TTL 32
 
 AutoComplete::AutoComplete(std::u16string p)
-    : prefix(p), state(State::Loading), snapshot(0), document(0),
-      selected(0), ttl(AUTOCOMPLETE_TTL) {}
+    : prefix(p), state(State::Loading), snapshot(0), document(0), selected(0),
+      ttl(AUTOCOMPLETE_TTL) {}
 
 AutoComplete::~AutoComplete() {
   if (snapshot) {
@@ -18,23 +18,13 @@ AutoComplete::~AutoComplete() {
   }
 }
 
-void AutoComplete::set_ready()
-{
-  state = AutoComplete::State::Ready;
-}
+void AutoComplete::set_ready() { state = AutoComplete::State::Ready; }
 
-void AutoComplete::set_consumed()
-{
-  state = AutoComplete::State::Consumed;
-}
+void AutoComplete::set_consumed() { state = AutoComplete::State::Consumed; }
 
-void AutoComplete::keep_alive()
-{
-  ttl = AUTOCOMPLETE_TTL;
-}
+void AutoComplete::keep_alive() { ttl = AUTOCOMPLETE_TTL; }
 
-bool AutoComplete::is_disposable()
-{
+bool AutoComplete::is_disposable() {
   if (state < AutoComplete::State::Ready) {
     return false;
   }
@@ -49,7 +39,7 @@ void *autocomplete_thread(void *arg) {
   std::u16string k = autocomplete->prefix;
   std::vector<TextBuffer::SubsequenceMatch> res =
       snapshot->find_words_with_subsequence_in_range(k, k,
-                                                   Range::all_inclusive());
+                                                     Range::all_inclusive());
   for (auto r : res) {
     if (r.score < 0)
       break;

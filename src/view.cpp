@@ -45,6 +45,8 @@ void view_t::layout(rect_t c) {
   int reserved = 0;
   int total_flex = 0;
   for (auto c : children) {
+    if (!c->show)
+      continue;
     *_h(&c->constraint) = *_h(&constraint);
     if (c->flex > 0) {
       flexibles.push_back(c);
@@ -65,6 +67,8 @@ void view_t::layout(rect_t c) {
   }
 
   for (auto c : children) {
+    if (!c->show)
+      continue;
     c->layout(c->constraint);
   }
 }
@@ -77,6 +81,8 @@ void view_t::render() {
 
   int x = *_x(&computed);
   for (auto c : children) {
+    if (!c->show)
+      continue;
     *_x(&c->constraint) = x;
     *_y(&c->constraint) = *_y(&computed);
     c->render();

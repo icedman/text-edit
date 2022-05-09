@@ -32,6 +32,7 @@ public:
   bool has_selection();
   void clear_selection();
   bool is_within(int row, int column);
+  bool is_edge(int row, int column);
   void insert_text(std::u16string text);
   void delete_text(int number_of_characters = 1);
 

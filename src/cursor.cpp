@@ -219,6 +219,14 @@ bool Cursor::is_within(int row, int column) {
   return true;
 }
 
+bool Cursor::is_edge(int row, int column) {
+  Cursor c = normalized();
+  if (row == 0 && column == 0)
+    return false;
+  return (c.start.row == row && c.start.column == column) ||
+         (c.end.row == row && c.end.column == column + 1);
+}
+
 void Cursor::insert_text(std::u16string text) {
   Range range = normalized();
   int r = 0;

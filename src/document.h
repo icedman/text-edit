@@ -39,8 +39,6 @@ public:
   Document();
   ~Document();
 
-  std::vector<std::string> outputs;
-
   std::u16string clipboard_data;
 
   TextBuffer buffer;
@@ -54,6 +52,8 @@ public:
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;
   std::vector<TreeSitterPtr> treesitters;
+
+  language_info_ptr language;
 
   void initialize(std::u16string &str);
 
@@ -88,6 +88,7 @@ public:
   std::u16string subsequence_text();
   optional<Range> subsequence_range();
   std::u16string selected_text();
+  std::vector<int> selected_lines();
   optional<Range> find_from_cursor(std::u16string text, Cursor cursor);
 
   void copy();
@@ -119,6 +120,9 @@ public:
 
   void run_treesitter();
   TreeSitterPtr treesitter();
+
+  optional<Cursor> block_cursor(Cursor cursor);
+  optional<Cursor> span_cursor(Cursor cursor);
 };
 
 #endif // TE_DOCUMENT_H

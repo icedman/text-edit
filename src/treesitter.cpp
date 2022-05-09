@@ -2,23 +2,38 @@
 #include "document.h"
 #include "utf8.h"
 
-#include <pthread.h>
-#include <map>
 #include <functional>
+#include <map>
+#include <pthread.h>
 
 extern "C" {
-// const TSLanguage *tree_sitter_javascript(void);
 const TSLanguage *tree_sitter_c(void);
-#define LANGUAGE tree_sitter_c
+const TSLanguage *tree_sitter_cpp(void);
+const TSLanguage *tree_sitter_c_sharp(void);
+const TSLanguage *tree_sitter_css(void);
+const TSLanguage *tree_sitter_html(void);
+const TSLanguage *tree_sitter_java(void);
+const TSLanguage *tree_sitter_javascript(void);
+const TSLanguage *tree_sitter_json(void);
+const TSLanguage *tree_sitter_python(void);
 }
 
 #include "document.h"
 
-std::map<std::string, std::function<const TSLanguage*()>> ts_languages = {
-  { "c", tree_sitter_c }
+std::map<std::string, std::function<const TSLanguage *()>> ts_languages = {
+    {"c", tree_sitter_c},
+    {"cpp", tree_sitter_cpp},
+    {"csharp", tree_sitter_c_sharp},
+    {"css", tree_sitter_css},
+    {"html", tree_sitter_html},
+    {"xml", tree_sitter_html},
+    {"java", tree_sitter_java},
+    {"js", tree_sitter_javascript},
+    {"json", tree_sitter_json},
+    {"python", tree_sitter_python},
 };
 
-void walk_tree(TSTreeCursor *cursor, int depth, int line, int column,
+void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
                std::vector<TSNode> *nodes) {
   TSNode node = ts_tree_cursor_current_node(cursor);
   int start = ts_node_start_byte(node);
@@ -28,11 +43,20 @@ void walk_tree(TSTreeCursor *cursor, int depth, int line, int column,
   TSPoint startPoint = ts_node_start_point(node);
   TSPoint endPoint = ts_node_end_point(node);
 
-  if (line != -1 && (line < startPoint.row || line > endPoint.row)) {
+  // if (strlen(type) == 0 || type[0] == '\n') return;
+
+  if (row != -1 && column != -1) {
+    if (row < startPoint.row ||
+        (row == startPoint.row && column < startPoint.column))
+      return;
+    if (row > endPoint.row || (row == endPoint.row && column > endPoint.column))
+      return;
+  }
+  if (row != -1 && (row < startPoint.row || row > endPoint.row)) {
     return;
   }
 
-  if (startPoint.row <= line && endPoint.row >= line) {
+  if (startPoint.row <= row && endPoint.row >= row) {
     if (nodes != NULL) {
       nodes->push_back(node);
     }
@@ -43,7 +67,7 @@ void walk_tree(TSTreeCursor *cursor, int depth, int line, int column,
   }
 
   do {
-    walk_tree(cursor, depth + 1, line, column, nodes);
+    walk_tree(cursor, depth + 1, row, column, nodes);
   } while (ts_tree_cursor_goto_next_sibling(cursor));
 }
 
@@ -56,7 +80,7 @@ void walk_tree(TSTreeCursor *cursor, int depth, int line, int column,
 // ) {
 //   TextBuffer::Snapshot *snapshot = (TextBuffer::Snapshot*)payload;
 //   Point point = snapshot->position_for_offset(byte_offset);
-//   std::u16string str = 
+//   std::u16string str =
 //   return str.substr(byte_offset, );
 // }
 // typedef struct {
@@ -80,12 +104,12 @@ void build_tree(TreeSitter *treesitter) {
 
   treesitter->tree = NULL;
 
-  std::string langId = "c";
+  std::string langId = doc->language ? doc->language->id : "--unknown--";
   if (ts_languages.find(langId) == ts_languages.end()) {
     // printf("language not available\n");
     return;
   }
-  std::function<const TSLanguage*()> lang = ts_languages[langId];
+  std::function<const TSLanguage *()> lang = ts_languages[langId];
 
   TSParser *parser = ts_parser_new();
   if (!ts_parser_set_language(parser, lang())) {
@@ -93,10 +117,11 @@ void build_tree(TreeSitter *treesitter) {
     return;
   }
 
-  std::string content = u16string_to_string(snapshot->text()); /* TODO: parse TSInputEncodingUTF16 */
-  TSTree *tree = ts_parser_parse_string(parser, NULL /* TODO: old_tree */,
-          (char*)(content.c_str()),
-          content.size());
+  std::string content = u16string_to_string(
+      snapshot->text()); /* TODO: parse TSInputEncodingUTF16 */
+  TSTree *tree =
+      ts_parser_parse_string(parser, NULL /* TODO: old_tree */,
+                             (char *)(content.c_str()), content.size());
 
   if (tree) {
     treesitter->tree = tree;
@@ -110,8 +135,8 @@ void build_tree(TreeSitter *treesitter) {
 #define TREESITTER_TTL 32
 
 TreeSitter::TreeSitter()
-    : state(State::Loading), snapshot(0), document(0),
-      ttl(TREESITTER_TTL), tree(NULL) {}
+    : state(State::Loading), snapshot(0), document(0), ttl(TREESITTER_TTL),
+      tree(NULL) {}
 
 TreeSitter::~TreeSitter() {
   if (snapshot) {
@@ -122,31 +147,20 @@ TreeSitter::~TreeSitter() {
   }
 }
 
-void TreeSitter::set_ready()
-{
-  state = TreeSitter::State::Ready;
-}
+void TreeSitter::set_ready() { state = TreeSitter::State::Ready; }
 
-void TreeSitter::set_consumed()
-{
-  state = TreeSitter::State::Consumed;
-}
+void TreeSitter::set_consumed() { state = TreeSitter::State::Consumed; }
 
-void TreeSitter::keep_alive()
-{
-  ttl = TREESITTER_TTL;
-}
+void TreeSitter::keep_alive() { ttl = TREESITTER_TTL; }
 
-bool TreeSitter::is_disposable()
-{
+bool TreeSitter::is_disposable() {
   if (state < TreeSitter::State::Ready) {
     return false;
   }
   return --ttl <= 0;
 }
 
-std::vector<TSNode> TreeSitter::walk(int row, int column)
-{
+std::vector<TSNode> TreeSitter::walk(int row, int column) {
   std::vector<TSNode> nodes;
 
   TSNode root_node = ts_tree_root_node(tree);
@@ -158,7 +172,7 @@ std::vector<TSNode> TreeSitter::walk(int row, int column)
 
 void *treeSitter_thread(void *arg) {
   TreeSitter *treesitter = (TreeSitter *)arg;
-  
+
   build_tree(treesitter);
 
   treesitter->thread_id = 0;

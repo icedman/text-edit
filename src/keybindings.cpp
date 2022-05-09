@@ -61,7 +61,15 @@ std::map<std::string, Command> commands = {
     // {"ctrl+shift+|", Command{"toggle_pinned", ""}},
     {"ctrl+k", Command{"await", ""}},
     {"ctrl+k+ctrl+u", Command{"selection_to_uppercase", ""}},
-    {"ctrl+k+ctrl+l", Command{"selection_to_lowercase", ""}}};
+    {"ctrl+k+ctrl+l", Command{"selection_to_lowercase", ""}},
+    {"ctrl+k+ctrl+x", Command{"expand_cursor", ""}},
+    {"ctrl+k+ctrl+c", Command{"contract_cursor", ""}},
+    {"ctrl+t", Command{"await", ""}},
+    {"ctrl+t+ctrl+t", Command{"toggle_tree_sitter", ""}},
+    {"ctrl+t+ctrl+g", Command{"toggle_gutter", ""}},
+    {"ctrl+t+ctrl+s", Command{"toggle_statusbar", ""}}
+
+};
 
 Command &command_from_keys(std::string keys, std::string previous) {
   std::map<std::string, Command> *cmds = &commands;
