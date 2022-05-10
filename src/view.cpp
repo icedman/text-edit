@@ -73,7 +73,7 @@ void view_t::layout(rect_t c) {
   }
 }
 
-void view_t::render() {
+void view_t::finalize() {
   *_x(&computed) = *_x(&constraint);
   *_y(&computed) = *_y(&constraint);
   *_w(&computed) = *_w(&constraint);
@@ -81,11 +81,11 @@ void view_t::render() {
 
   int x = *_x(&computed);
   for (auto c : children) {
-    if (!show)
+    if (!c->show)
       continue;
     *_x(&c->constraint) = x;
     *_y(&c->constraint) = *_y(&computed);
-    c->render();
+    c->finalize();
     x += *_w(&c->constraint);
   }
 }

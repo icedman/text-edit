@@ -34,6 +34,11 @@ std::u16string _detect_tab_string(std::u16string text) {
   return str;
 }
 
+std::u16string &Document::empty() {
+  static std::u16string _empty;
+  return _empty;
+}
+
 void Document::initialize(std::u16string &str) {
   buffer.set_text(str);
   buffer.flush_changes();
@@ -62,6 +67,8 @@ void Document::initialize(std::u16string &str) {
 }
 
 bool Document::load(std::string path) {
+  file_path = path;
+
   std::ifstream t(path);
   std::stringstream buffer;
   buffer << t.rdbuf();
@@ -118,6 +125,19 @@ void Document::move_right(bool anchor) {
   for (auto &c : cursors) {
     c.move_right(anchor);
   }
+}
+
+void Document::go_to_line(int line) {
+  if (line < 0) {
+    line = 0;
+  }
+  if (line >= size()) {
+    line = size() - 1;
+  }
+  clear_cursors();
+  Cursor &cur = cursor();
+  cur.start.row = line;
+  cur.end = cur.start;
 }
 
 void Document::insert_text(std::u16string text) {
@@ -650,7 +670,63 @@ void Document::clear_autocomplete(bool force) {
   }
 }
 
+void Document::run_search(std::u16string key) {
+  if (key.size() < 3)
+    return;
+  if (search_key != key) {
+    search_key = key;
+    if (searches.find(key) != searches.end()) {
+      if (searches[key] != nullptr) {
+        searches[key]->state = Search::State::Ready;
+        return;
+      }
+    }
+
+    SearchPtr search = std::make_shared<Search>(key);
+    search->document = this;
+    search->snapshot = buffer.create_snapshot();
+    searches[key] = search;
+    Search::run(search.get());
+  }
+}
+
+SearchPtr Document::search() {
+  if (searches.find(search_key) != searches.end()) {
+    if (searches[search_key]->state != Search::State::Loading &&
+        searches[search_key]->matches.size() > 0) {
+      // searches[search_key]->set_ready();
+      searches[search_key]->keep_alive();
+      return searches[search_key];
+    }
+  }
+  return nullptr;
+}
+
+void Document::clear_search(bool force) {
+  if (force || search_key != subsequence_text()) {
+    search_key = u"";
+  }
+
+  std::vector<std::u16string> disposables;
+
+  // dispose
+  for (auto it : searches) {
+    SearchPtr ac = it.second;
+    if (ac && ac->is_disposable()) {
+      disposables.push_back(it.first);
+    }
+  }
+
+  for (auto d : disposables) {
+    searches.erase(d);
+  }
+}
+
 void Document::run_treesitter() {
+  if (!language || !TreeSitter::is_available(language->id)) {
+    return;
+  }
+
   // disable
   if (size() > TS_DOC_SIZE_LIMIT)
     return;
@@ -746,6 +822,10 @@ optional<Cursor> Document::span_cursor(Cursor cursor) {
   Cursor cur = cursor.copy();
 
   while (deepest.id) {
+    const char *type = ts_node_type(deepest);
+    if (strlen(type) == 0 || type[0] == '\n')
+      return res;
+
     TSPoint start = ts_node_start_point(deepest);
     TSPoint end = ts_node_end_point(deepest);
     cur.start = {start.row, start.column};
@@ -754,7 +834,6 @@ optional<Cursor> Document::span_cursor(Cursor cursor) {
     if (ts_node_child_count(deepest) > 0) {
       break;
     }
-    break;
     TSNode p = ts_node_parent(deepest);
     if (!p.id) {
       break;

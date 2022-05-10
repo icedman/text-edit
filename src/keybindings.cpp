@@ -9,8 +9,8 @@ std::map<std::string, Command> commands = {
     {"ctrl+q", Command{"quit", ""}},
     // {"ctrl+shift+f", Command{"search_text_in_files", ""}},
     // {"ctrl+p",       Command{"search_files", ""}},
-    // {"ctrl+f",       Command{"search_text", ""}},
-    // {"ctrl+g",       Command{"jump_to_line", ""}},
+    {"ctrl+f", Command{"search_text", ""}},
+    {"ctrl+g", Command{"jump_to_line", ""}},
     {"ctrl+z", Command{"undo", ""}},
     // {"ctrl+shift+z", Command{"redo", ""}},
 

@@ -52,6 +52,9 @@ void *autocomplete_thread(void *arg) {
 
   autocomplete->thread_id = 0;
   autocomplete->set_ready();
+
+  delete autocomplete->snapshot;
+  autocomplete->snapshot = NULL;
   return NULL;
 }
 

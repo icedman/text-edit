@@ -10,6 +10,7 @@
 #include "autocomplete.h"
 #include "cursor.h"
 #include "parse.h"
+#include "search.h"
 #include "textmate.h"
 #include "treesitter.h"
 
@@ -39,6 +40,7 @@ public:
   Document();
   ~Document();
 
+  std::string file_path;
   std::u16string clipboard_data;
 
   TextBuffer buffer;
@@ -51,9 +53,13 @@ public:
 
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;
+  std::u16string search_key;
+  std::map<std::u16string, SearchPtr> searches;
   std::vector<TreeSitterPtr> treesitters;
 
   language_info_ptr language;
+
+  static std::u16string &empty();
 
   void initialize(std::u16string &str);
   bool load(std::string path);
@@ -75,6 +81,8 @@ public:
   void move_to_end_of_line(bool anchor = false);
   void move_to_previous_word(bool anchor = false);
   void move_to_next_word(bool anchor = false);
+
+  void go_to_line(int line);
 
   void selection_to_uppercase();
   void selection_to_lowercase();
@@ -120,6 +128,10 @@ public:
   void run_autocomplete();
   void clear_autocomplete(bool force = false);
   AutoCompletePtr autocomplete();
+
+  void run_search(std::u16string key);
+  void clear_search(bool force = false);
+  SearchPtr search();
 
   void run_treesitter();
   TreeSitterPtr treesitter();

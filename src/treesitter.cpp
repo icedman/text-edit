@@ -200,6 +200,9 @@ void *treeSitter_thread(void *arg) {
 
   treesitter->thread_id = 0;
   treesitter->set_ready();
+
+  delete treesitter->snapshot;
+  treesitter->snapshot = NULL;
   return NULL;
 }
 
