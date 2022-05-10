@@ -1,7 +1,10 @@
 #include "document.h"
 #include "utf8.h"
 
+#include <core/encoding-conversion.h>
 #include <core/regex.h>
+#include <fstream>
+#include <iostream>
 #include <sstream>
 
 #define TS_DOC_SIZE_LIMIT 10000
@@ -19,6 +22,18 @@ Document::~Document() {
   }
 }
 
+std::u16string _detect_tab_string(std::u16string text) {
+  std::u16string str;
+  for (int i = 0; i < text.length(); i++) {
+    if (text[i] == u' ') {
+      str += u" ";
+    } else {
+      break;
+    }
+  }
+  return str;
+}
+
 void Document::initialize(std::u16string &str) {
   buffer.set_text(str);
   buffer.flush_changes();
@@ -34,13 +49,7 @@ void Document::initialize(std::u16string &str) {
     if (tab_string.size() == 0) {
       optional<std::u16string> row = buffer.line_for_row(i);
       if (row) {
-        for (int j = 0; j < (*row).length(); j++) {
-          if ((*row)[j] == u' ') {
-            tab_string += u" ";
-          } else {
-            break;
-          }
-        }
+        tab_string = _detect_tab_string((*row));
       }
     }
   }
@@ -50,6 +59,27 @@ void Document::initialize(std::u16string &str) {
   }
 
   run_treesitter();
+}
+
+bool Document::load(std::string path) {
+  std::ifstream t(path);
+  std::stringstream buffer;
+  buffer << t.rdbuf();
+
+  std::u16string str;
+
+  optional<EncodingConversion> enc = transcoding_from("UTF-8");
+  (*enc).decode(str, buffer.str().c_str(), buffer.str().size());
+
+  initialize(str);
+  return true;
+}
+
+bool Document::save(std::string path) {
+  std::string _sstring = u16string_to_string(buffer.text());
+  std::ofstream t(path);
+  t << _sstring;
+  return true;
 }
 
 void Document::snap() {
@@ -445,6 +475,9 @@ std::vector<int> Document::word_indices_in_line(int line, bool start,
 
 void Document::indent() {
   std::vector<int> lines = selected_lines();
+  if (lines.size() < 0) {
+    return;
+  }
   for (auto m : lines) {
     Cursor c = cursor().copy();
     c.start.row = m;
@@ -459,8 +492,10 @@ void Document::indent() {
 
 void Document::unindent() {
   std::vector<int> lines = selected_lines();
+  if (lines.size() < 0) {
+    return;
+  }
   for (auto m : lines) {
-    Cursor c = cursor().copy();
     optional<std::u16string> row = buffer.line_for_row(m);
     if (!row) {
       continue;
@@ -468,12 +503,61 @@ void Document::unindent() {
     if (!(*row).starts_with(tab_string)) {
       continue;
     }
+    Cursor c = cursor().copy();
     c.start.row = m;
     c.start.column = 0;
     c.end = c.start;
     c.id = -1;
     begin_cursor_markers(c);
     c.delete_text(tab_string.length());
+    end_cursor_markers(c);
+  }
+}
+
+void Document::toggle_comment() {
+  std::vector<int> lines = selected_lines();
+  if (lines.size() < 0) {
+    return;
+  }
+
+  std::u16string comment_string = u"// ";
+  std::map<int, int> comment_indices;
+  std::vector<int> filtered_lines;
+
+  // detect tab
+  bool has_uncommented = false;
+  int count = -1;
+  for (auto m : lines) {
+    optional<std::u16string> row = buffer.line_for_row(m);
+    if (!row) {
+      continue;
+    }
+    filtered_lines.push_back(m);
+    int idx = (*row).find(comment_string);
+    comment_indices[m] = idx;
+    if (idx == std::string::npos) {
+      has_uncommented = true;
+    }
+    std::u16string t = _detect_tab_string(*row);
+    if ((count == 0 || count > t.length())) {
+      count = t.length();
+    }
+  }
+
+  for (auto m : filtered_lines) {
+    Cursor c = cursor().copy();
+    c.start.row = m;
+    c.start.column = count;
+    c.end = c.start;
+    c.id = -1;
+    begin_cursor_markers(c);
+    if (has_uncommented) {
+      c.insert_text(comment_string);
+    } else {
+      c.start.column = comment_indices[m];
+      c.end = c.start;
+      c.delete_text(comment_string.length());
+    }
     end_cursor_markers(c);
   }
 }
@@ -544,7 +628,7 @@ void Document::clear_autocomplete(bool force) {
     autocomplete_substring = u"";
   }
 
-  if (autocompletes.size() < 20) {
+  if (autocompletes.size() < 100) {
     return;
   }
 
@@ -560,6 +644,9 @@ void Document::clear_autocomplete(bool force) {
 
   for (auto d : disposables) {
     autocompletes.erase(d);
+    if (autocompletes.size() < 40) {
+      break;
+    }
   }
 }
 

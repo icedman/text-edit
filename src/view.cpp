@@ -81,7 +81,7 @@ void view_t::render() {
 
   int x = *_x(&computed);
   for (auto c : children) {
-    if (!c->show)
+    if (!show)
       continue;
     *_x(&c->constraint) = x;
     *_y(&c->constraint) = *_y(&computed);
@@ -91,17 +91,10 @@ void view_t::render() {
 }
 
 int *view_t::_w(rect_t *rect) { return &rect->w; }
-
 int *view_t::_x(rect_t *rect) { return &rect->x; }
-
 int *view_t::_h(rect_t *rect) { return &rect->h; }
-
 int *view_t::_y(rect_t *rect) { return &rect->y; }
-
 int *column_t::_w(rect_t *rect) { return &rect->h; }
-
 int *column_t::_h(rect_t *rect) { return &rect->w; }
-
 int *column_t::_x(rect_t *rect) { return &rect->y; }
-
 int *column_t::_y(rect_t *rect) { return &rect->x; }

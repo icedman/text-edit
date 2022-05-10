@@ -271,7 +271,3 @@ void Cursor::delete_text(int number_of_characters) {
 std::u16string Cursor::selected_text() {
   return buffer->text_in_range(normalized());
 }
-
-void Cursor::indent() {}
-
-void Cursor::unindent() {}

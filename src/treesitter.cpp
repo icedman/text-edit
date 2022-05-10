@@ -43,6 +43,10 @@ void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
   TSPoint startPoint = ts_node_start_point(node);
   TSPoint endPoint = ts_node_end_point(node);
 
+  if (strcmp(type, "ERROR") == 0) {
+    nodes->clear();
+    return;
+  }
   // if (strlen(type) == 0 || type[0] == '\n') return;
 
   if (row != -1 && column != -1) {
@@ -134,6 +138,15 @@ void build_tree(TreeSitter *treesitter) {
 
 #define TREESITTER_TTL 32
 
+bool TreeSitter::is_available(std::string lang_id) {
+  std::string langId = lang_id;
+  if (ts_languages.find(langId) == ts_languages.end()) {
+    // printf("language not available\n");
+    return true;
+  }
+  return false;
+}
+
 TreeSitter::TreeSitter()
     : state(State::Loading), snapshot(0), document(0), ttl(TREESITTER_TTL),
       tree(NULL) {}
@@ -168,6 +181,16 @@ std::vector<TSNode> TreeSitter::walk(int row, int column) {
   walk_tree(&cursor, 0, row, column, &nodes);
 
   return nodes;
+}
+
+TSNode TreeSitter::node_at(int row, int column) {
+  TSNode res;
+  res.id = 0;
+  std::vector<TSNode> nodes = walk(row, column);
+  if (nodes.size() > 0) {
+    return nodes.back();
+  }
+  return res;
 }
 
 void *treeSitter_thread(void *arg) {

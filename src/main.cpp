@@ -1,4 +1,3 @@
-#include <core/encoding-conversion.h>
 #include <core/regex.h>
 #include <core/text-buffer.h>
 #include <core/text.h>
@@ -55,7 +54,7 @@ int scroll_x = 0;
 int blink_y = 0;
 int blink_x = 0;
 
-Document doc;
+DocumentPtr doc;
 
 #define SELECTED_OFFSET 500
 #define HIGHLIGHT_OFFSET 1000
@@ -173,10 +172,10 @@ void draw_gutter_line(int screen_row, int row, const char *text,
   int screen_col = view->computed.x;
   int l = strlen(text);
 
-  doc.cursor(); // ensure 1 cursor
-  std::vector<Cursor> &cursors = doc.cursors;
+  doc->cursor(); // ensure 1 cursor
+  std::vector<Cursor> &cursors = doc->cursors;
 
-  bool is_cursor_row = row == doc.cursor().start.row;
+  bool is_cursor_row = row == doc->cursor().start.row;
   int pair = pair_for_color(is_cursor_row ? fg : cmt, is_cursor_row, false);
   attron(COLOR_PAIR(pair));
   move(screen_row, screen_col);
@@ -202,7 +201,7 @@ void draw_gutter(TextBuffer &text, int scroll_y, view_ptr view) {
     start = 0;
   for (int i = 0; i < (vh * 1.5); i++) {
     int line = start + i;
-    BlockPtr block = doc.block_at(line);
+    BlockPtr block = doc->block_at(line);
     if (!block) {
       move(line + view->computed.y, view->computed.x);
       clrtoeol();
@@ -220,13 +219,13 @@ void draw_gutter(TextBuffer &text, int scroll_y, view_ptr view) {
 void draw_text_line(int screen_row, int row, const char *text,
                     std::vector<textstyle_t> &styles, view_ptr view) {
 
-  optional<Cursor> block_cursor = doc.block_cursor(doc.cursor());
+  optional<Cursor> block_cursor = doc->block_cursor(doc->cursor());
   if (block_cursor) {
     if ((*block_cursor).start.row == (*block_cursor).end.row) {
       block_cursor = optional<Cursor>();
     }
   }
-  // optional<Cursor> span_cursor = doc.span_cursor(doc.cursor());
+  // optional<Cursor> span_cursor = doc->span_cursor(doc->cursor());
 
   screen_row += view->computed.y;
   int screen_col = view->computed.x;
@@ -235,12 +234,12 @@ void draw_text_line(int screen_row, int row, const char *text,
 
   int l = strlen(text);
 
-  doc.cursor(); // ensure 1 cursor
-  std::vector<Cursor> &cursors = doc.cursors;
+  doc->cursor(); // ensure 1 cursor
+  std::vector<Cursor> &cursors = doc->cursors;
 
   int edge = pair_for_color(fg, true, false);
 
-  bool is_cursor_row = row == doc.cursor().start.row;
+  bool is_cursor_row = row == doc->cursor().start.row;
   int default_pair = pair_for_color(fg, false, is_cursor_row);
   for (int i = scroll_x; i < l; i++) {
     int pair = default_pair;
@@ -278,7 +277,7 @@ void draw_text_line(int screen_row, int row, const char *text,
       if (s.start >= i && i < s.start + s.length) {
         int colorIdx = color_index(s.r, s.g, s.b);
         pair =
-            pair_for_color(colorIdx, selected, row == doc.cursor().start.row);
+            pair_for_color(colorIdx, selected, row == doc->cursor().start.row);
         pair = pair > 0 ? pair : default_pair;
         break;
       }
@@ -330,7 +329,7 @@ void draw_text_buffer(TextBuffer &text, int scroll_y, view_ptr view) {
     start = 0;
   for (int i = 0; i < (vh * 1.5); i++) {
     int line = start + i;
-    BlockPtr block = doc.block_at(line);
+    BlockPtr block = doc->block_at(line);
     if (!block) {
       move(line + view->computed.y, view->computed.x);
       clrtoeol();
@@ -346,7 +345,7 @@ void draw_text_buffer(TextBuffer &text, int scroll_y, view_ptr view) {
     if (block->dirty) {
       block->styles = Textmate::run_highlighter(
           (char *)s.str().c_str(), lang_id, theme_id, block.get(),
-          doc.previous_block(block).get(), doc.next_block(block).get());
+          doc->previous_block(block).get(), doc->next_block(block).get());
       block->dirty = false;
     }
 
@@ -377,7 +376,7 @@ void draw_autocomplete(AutoCompletePtr autocomplete) {
   int margin = 1;
   w += (margin * 2);
 
-  optional<Range> sub = doc.subsequence_range();
+  optional<Range> sub = doc->subsequence_range();
   int offset_row = 0;
   int screen_col = blink_x;
   if (sub) {
@@ -420,7 +419,7 @@ void draw_tree_sitter(view_ptr view, TreeSitterPtr treesitter, Cursor cursor) {
   int sel = pair_for_color(fg, false, true);
 
   int row = 0;
-  optional<Cursor> block_cursor = doc.block_cursor(doc.cursor());
+  optional<Cursor> block_cursor = doc->block_cursor(doc->cursor());
   if (block_cursor) {
     std::stringstream ss;
     ss << "[";
@@ -491,6 +490,7 @@ void layout(view_ptr root) {
 }
 
 int main(int argc, char **argv) {
+  doc = std::make_shared<Document>();
 
   view_ptr root = std::make_shared<column_t>();
   view_ptr main = std::make_shared<row_t>();
@@ -535,25 +535,14 @@ int main(int argc, char **argv) {
   Textmate::initialize("/home/iceman/.editor/extensions/");
   theme_id = Textmate::load_theme(argTheme);
   lang_id = Textmate::load_language(file_path);
-  doc.language = Textmate::language_info(lang_id);
+  doc->language = Textmate::language_info(lang_id);
 
   theme_info_t info = Textmate::theme_info();
 
-  std::ifstream t(file_path);
-  std::stringstream buffer;
-  buffer << t.rdbuf();
+  doc->load(file_path);
+  TextBuffer &text = doc->buffer;
 
-  std::u16string str;
-
-  // TIMER_BEGIN
-  optional<EncodingConversion> enc = transcoding_from("UTF-8");
-  (*enc).decode(str, buffer.str().c_str(), buffer.str().size());
-  // TIMER_END
-
-  TextBuffer &text = doc.buffer;
-  doc.initialize(str);
-
-  std::vector<Cursor> &cursors = doc.cursors;
+  std::vector<Cursor> &cursors = doc->cursors;
 
   setlocale(LC_ALL, "");
 
@@ -594,11 +583,11 @@ int main(int argc, char **argv) {
     draw_gutter(text, scroll_y, gutter);
     draw_text_buffer(text, scroll_y, editor);
 
-    Cursor cursor = doc.cursor();
+    Cursor cursor = doc->cursor();
 
     // status
     std::stringstream ss;
-    ss << doc.language->id;
+    ss << doc->language->id;
     ss << "  ";
     ss << " line ";
     ss << (cursor.start.row + 1);
@@ -622,14 +611,14 @@ int main(int argc, char **argv) {
       draw_text(status_line_col, ss.str().c_str());
     }
 
-    AutoCompletePtr autocomplete = doc.autocomplete();
+    AutoCompletePtr autocomplete = doc->autocomplete();
     if (autocomplete) {
       draw_autocomplete(autocomplete);
     }
 
-    TreeSitterPtr treesitter = doc.treesitter();
+    TreeSitterPtr treesitter = doc->treesitter();
     if (treesitter) {
-      draw_tree_sitter(sitter, treesitter, doc.cursor());
+      draw_tree_sitter(sitter, treesitter, doc->cursor());
     }
 
     move(blink_y, blink_x);
@@ -650,19 +639,19 @@ int main(int argc, char **argv) {
 
       // check autocomplete
       if (frames == 500 && request_treesitter) {
-        doc.run_treesitter();
+        doc->run_treesitter();
         request_treesitter = false;
         break;
       }
 
       if (frames == 750 && request_autocomplete) {
-        doc.clear_autocomplete(true);
-        doc.run_autocomplete();
+        doc->clear_autocomplete(true);
+        doc->run_autocomplete();
         request_autocomplete = false;
         break;
       }
       if (frames == 1500) {
-        autocomplete = doc.autocomplete();
+        autocomplete = doc->autocomplete();
         if (autocomplete &&
             autocomplete->state != AutoComplete::State::Consumed) {
           autocomplete->set_consumed();
@@ -704,20 +693,20 @@ int main(int argc, char **argv) {
         key_sequence = "";
         ch = -1;
       }
-      if (key_sequence == "enter") {
+      if (key_sequence == "enter" || key_sequence == "tab") {
         key_sequence = "";
         ch = -1;
-        optional<Range> range = doc.subsequence_range();
+        optional<Range> range = doc->subsequence_range();
         if (range) {
           std::u16string selected =
               autocomplete->matches[autocomplete->selected].string;
-          doc.clear_cursors();
-          doc.cursor().copy_from(Cursor{(*range).start, (*range).end});
-          doc.insert_text(selected);
+          doc->clear_cursors();
+          doc->cursor().copy_from(Cursor{(*range).start, (*range).end});
+          doc->insert_text(selected);
         }
       }
       if (key_sequence == "left" || key_sequence == "right") {
-        doc.clear_autocomplete(true);
+        doc->clear_autocomplete(true);
         key_sequence = "";
         ch = -1;
       }
@@ -726,10 +715,9 @@ int main(int argc, char **argv) {
     Command &cmd = command_from_keys(key_sequence, last_key_sequence);
 
     if (key_sequence != "") {
-      message = cmd.command;
-      // message = key_sequence;
-      //   outputs.push_back(key_sequence);
-      //   outputs.push_back(cmd.command);
+      message = key_sequence;
+      message += " ";
+      message += cmd.command;
     }
 
     if (cmd.command == "quit") {
@@ -743,107 +731,117 @@ int main(int argc, char **argv) {
     last_key_sequence = "";
 
     if (cmd.command == "save") {
-      message = "save - unimplemented";
+      if (doc->save(file_path)) {
+        message = "saved";
+      } else {
+        message = "error saving";
+      }
     }
     if (cmd.command == "close") {
       running = false;
     }
 
     if (cmd.command == "cancel") {
-      doc.clear_cursors();
-      doc.clear_autocomplete(true);
+      doc->clear_cursors();
+      doc->clear_autocomplete(true);
     }
 
     if (cmd.command == "undo") {
-      doc.undo();
+      doc->undo();
     }
 
     if (cmd.command == "copy") {
-      doc.copy();
+      doc->copy();
     }
     if (cmd.command == "cut") {
-      doc.copy();
-      doc.delete_text();
+      doc->copy();
+      doc->delete_text();
     }
     if (cmd.command == "paste") {
-      doc.paste();
+      doc->paste();
     }
     if (cmd.command == "select_word") {
-      doc.add_cursor_from_selected_word();
+      doc->add_cursor_from_selected_word();
     }
     if (cmd.command == "select_all") {
-      doc.clear_cursors();
-      doc.move_to_start_of_document();
-      doc.move_to_end_of_document(true);
+      doc->clear_cursors();
+      doc->move_to_start_of_document();
+      doc->move_to_end_of_document(true);
     }
     if (cmd.command == "select_line") {
-      doc.move_to_start_of_line();
-      doc.move_to_end_of_line(true);
+      doc->move_to_start_of_line();
+      doc->move_to_end_of_line(true);
     }
     if (cmd.command == "expand_cursor") {
-      Cursor cur = doc.cursor().normalized();
-      optional<Cursor> block_cursor = doc.block_cursor(cur);
+      Cursor cur = doc->cursor().normalized();
+      optional<Cursor> block_cursor = doc->block_cursor(cur);
       if (block_cursor) {
-        doc.clear_cursors();
-        doc.cursor().copy_from(*block_cursor);
+        doc->clear_cursors();
+        doc->cursor().copy_from(*block_cursor);
       }
     }
     if (cmd.command == "contract_cursor") {
     }
     if (cmd.command == "selection_to_uppercase") {
-      doc.selection_to_uppercase();
+      doc->selection_to_uppercase();
     }
     if (cmd.command == "selection_to_lowercase") {
-      doc.selection_to_lowercase();
+      doc->selection_to_lowercase();
     }
     if (cmd.command == "indent") {
-      doc.indent();
+      doc->indent();
+      request_treesitter = true;
     }
     if (cmd.command == "unindent") {
-      doc.unindent();
+      doc->unindent();
+      request_treesitter = true;
+    }
+    if (cmd.command == "toggle_comment") {
+      doc->toggle_comment();
+      request_treesitter = true;
     }
 
     if (cmd.command == "move_up") {
-      doc.move_up(cmd.params == "anchored");
+      doc->move_up(cmd.params == "anchored");
     }
     if (cmd.command == "move_down") {
-      doc.move_down(cmd.params == "anchored");
+      doc->move_down(cmd.params == "anchored");
     }
     if (cmd.command == "move_left") {
-      doc.move_left(cmd.params == "anchored");
+      doc->move_left(cmd.params == "anchored");
     }
     if (cmd.command == "move_right") {
-      doc.move_right(cmd.params == "anchored");
+      doc->move_right(cmd.params == "anchored");
     }
 
     if (cmd.command == "pageup") {
       for (int i = 0; i < height; i++)
-        doc.move_up();
+        doc->move_up();
     }
     if (cmd.command == "pagedown") {
       for (int i = 0; i < height; i++)
-        doc.move_down();
+        doc->move_down();
     }
     if (cmd.command == "move_to_start_of_line") {
-      doc.move_to_start_of_line();
+      doc->move_to_start_of_line();
     }
     if (cmd.command == "move_to_end_of_line") {
-      doc.move_to_end_of_line();
+      doc->move_to_end_of_line();
     }
 
     if (cmd.command == "add_cursor_and_move_up") {
-      doc.add_cursor(doc.cursor());
-      doc.cursor().move_up();
+      doc->add_cursor(doc->cursor());
+      doc->cursor().move_up();
     }
     if (cmd.command == "add_cursor_and_move_down") {
-      doc.add_cursor(doc.cursor());
-      doc.cursor().move_down();
+      doc->add_cursor(doc->cursor());
+      doc->cursor().move_down();
     }
     if (cmd.command == "move_to_previous_word") {
-      doc.move_to_previous_word();
+      doc->move_to_previous_word();
     }
     if (cmd.command == "move_to_next_word") {
-      doc.move_to_next_word();
+      doc->move_to_next_word();
     }
 
     if (cmd.command == "toggle_tree_sitter") {
@@ -854,41 +852,48 @@ int main(int argc, char **argv) {
       gutter->show = !gutter->show;
       layout(root);
     }
-    if (cmd.command == "toggle_status") {
+    if (cmd.command == "toggle_statusbar") {
       status->show = !status->show;
       layout(root);
     }
 
-    cursor = doc.cursor();
+    cursor = doc->cursor();
 
     if (key_sequence == "enter") {
       key_sequence = "";
       ch = '\n';
+    }
+    if (key_sequence == "tab") {
+      key_sequence = "";
+      ch = '\t';
     }
 
     // input
     if (key_sequence == "" && ch != -1) {
       std::u16string text = u"x";
       text[0] = ch;
-      doc.insert_text(text);
+      if (ch == '\t') {
+        text = doc->tab_string;
+      }
+      doc->insert_text(text);
       request_autocomplete = true;
       request_treesitter = true;
     }
 
     if (!request_autocomplete && autocomplete) {
-      doc.clear_autocomplete();
+      doc->clear_autocomplete();
     }
 
     // delete
     if (cmd.command == "backspace") {
-      if (!doc.has_selection()) {
-        doc.move_left();
+      if (!doc->has_selection()) {
+        doc->move_left();
       }
-      doc.delete_text();
+      doc->delete_text();
       request_treesitter = true;
     }
     if (cmd.command == "delete") {
-      doc.delete_text();
+      doc->delete_text();
       request_treesitter = true;
     }
 
@@ -928,7 +933,7 @@ int main(int argc, char **argv) {
     printf(">%s\n", k.c_str());
   }
 
-  // printf("%s\n", doc.buffer.get_dot_graph().c_str());
-  printf(">%s\n", doc.language->id.c_str());
+  // printf("%s\n", doc->buffer.get_dot_graph().c_str());
+  printf(">%s\n", doc->language->id.c_str());
   return 0;
 }

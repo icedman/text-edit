@@ -36,7 +36,7 @@ std::map<std::string, Command> commands = {
 
     {"ctrl+k+ctrl+p", Command{"indent", ""}},
     {"ctrl+k+ctrl+o", Command{"unindent", ""}},
-    // {"ctrl+/", Command{"toggle_comment", ""}},
+    {"ctrl+/", Command{"toggle_comment", ""}},
     {"ctrl+c", Command{"copy", ""}},
     {"ctrl+x", Command{"cut", ""}},
     {"ctrl+v", Command{"paste", ""}},

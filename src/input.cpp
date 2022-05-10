@@ -309,9 +309,22 @@ int readKey(std::string &keySequence) {
           keySequence += c;
           return c;
         } else {
-          keySequence += '?';
+          switch (c) {
+          case 96:
+            keySequence += '`';
+            break;
+          case 127:
+            keySequence += '/';
+            break;
+          case 124:
+            keySequence += '\\';
+            break;
+          default:
+            keySequence += '?';
+            break;
+          }
+          // printf("ctrl+%d\n", c);
         }
-        // printf("ctrl+%d\n", c);
         return c;
       }
 

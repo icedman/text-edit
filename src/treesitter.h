@@ -33,6 +33,9 @@ public:
   bool is_disposable();
 
   std::vector<TSNode> walk(int row, int column);
+  TSNode node_at(int row, int column);
+
+  static bool is_available(std::string lang_id);
 };
 
 typedef std::shared_ptr<TreeSitter> TreeSitterPtr;

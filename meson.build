@@ -7,6 +7,9 @@ pwd = meson.current_source_dir()
 cc = meson.get_compiler('cpp')
 
 add_global_arguments('-D_XOPEN_SOURCE_EXTENDED=1', language: 'cpp')
+add_global_arguments('-Wno-sign-compare', language: 'cpp')
+add_global_arguments('-Wno-unused-variable', language: 'cpp')
+add_global_arguments('-Wno-unused-parameter', language: 'cpp')
 
 superstring_files = [
     'libs/superstring/src/core/encoding-conversion.cc',

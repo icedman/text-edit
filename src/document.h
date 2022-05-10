@@ -56,6 +56,8 @@ public:
   language_info_ptr language;
 
   void initialize(std::u16string &str);
+  bool load(std::string path);
+  bool save(std::string path);
 
   Cursor &cursor();
 
@@ -109,6 +111,7 @@ public:
 
   void indent();
   void unindent();
+  void toggle_comment();
 
   std::vector<Range> words_in_line(int line);
   std::vector<int> word_indices_in_line(int line, bool start = true,
@@ -124,5 +127,7 @@ public:
   optional<Cursor> block_cursor(Cursor cursor);
   optional<Cursor> span_cursor(Cursor cursor);
 };
+
+typedef std::shared_ptr<Document> DocumentPtr;
 
 #endif // TE_DOCUMENT_H
