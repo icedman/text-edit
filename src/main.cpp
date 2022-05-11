@@ -656,6 +656,7 @@ int main(int argc, char **argv) {
 
   EditorPtr focused = editor;
 
+  int warm_start = 5;
   int last_layout_size = -1;
   std::string last_key_sequence;
   bool running = true;
@@ -764,6 +765,10 @@ int main(int argc, char **argv) {
       if (frames > 2000) {
         frames = 0;
         idle++;
+        if (Textmate::has_running_threads() || warm_start-- > 0) {
+          editor->doc->make_dirty();
+          break;
+        }
       }
 
       if (idle > 8)
@@ -925,6 +930,11 @@ int main(int argc, char **argv) {
   }
 
   // printf("%s\n", doc->buffer.get_dot_graph().c_str());
-  printf(">%s\n", doc->language->id.c_str());
+  // printf(">%s\n", doc->language->id.c_str());
+
+  int idx = 20;
+  while(Textmate::has_running_threads() && idx-- > 0) {
+    delay(50);
+  }
   return 0;
 }

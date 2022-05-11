@@ -476,3 +476,8 @@ char *icon_for_filename(char *filename) {
   strcpy(text_buffer, icon.path.c_str());
   return text_buffer;
 }
+
+bool Textmate::has_running_threads()
+{
+  return parse::grammar_t::running_threads > 0;
+}

@@ -9,6 +9,7 @@
 #include "parse.h"
 #include "private.h"
 #include "reader.h"
+#include <pthread.h>
 
 namespace parse {
 
@@ -18,6 +19,8 @@ void set_extensions(extension_list* exts)
 {
     extensions = exts;
 }
+
+int grammar_t::running_threads = 0;
 
 grammar_t::grammar_t(Json::Value const& json)
 {
@@ -217,22 +220,46 @@ rule_ptr grammar_t::find_grammar(std::string const& scope,
         }
 
         if (found) {
-            return add_grammar(scope, load_plist_or_json(path), base);
+            return add_grammar(scope, load_plist_or_json(path), base, true);
         }
     }
 
     return nullptr;
 }
 
+void* grammar_t::setup_includes_thread(void* arg)
+{
+    grammar_t::setup_includes_payload_t* p = (grammar_t::setup_includes_payload_t*)arg;
+    compile_patterns(p->self.get());
+    p->_this->setup_includes(p->rule, p->base, p->self, p->stack);
+    delete p;
+    running_threads--;
+}
+
 rule_ptr grammar_t::add_grammar(std::string const& scope,
-    Json::Value const& json, rule_ptr const& base)
+    Json::Value const& json, rule_ptr const& base, bool spawn_thread)
 {
     rule_ptr grammar = convert_json(json);
     if (grammar) {
         _grammars.emplace(scope, grammar);
-        setup_includes(grammar, base ? base : grammar, grammar,
-            rule_stack_t(grammar.get()));
-        compile_patterns(grammar.get());
+
+        if (spawn_thread) {
+            setup_includes_payload_t* p = new setup_includes_payload_t();
+            p->_this = this;
+            p->rule = grammar;
+            p->base = base ? base : grammar;
+            p->self = grammar;
+            p->stack = rule_stack_t(grammar.get());
+            running_threads++;
+            pthread_t thread_id;
+            pthread_create(&thread_id, NULL,
+                &setup_includes_thread, (void*)(p));
+
+        } else {
+            compile_patterns(grammar.get());
+            setup_includes(grammar, base ? base : grammar, grammar,
+                rule_stack_t(grammar.get()));
+        }
     }
 
     return grammar;
@@ -247,21 +274,6 @@ stack_ptr grammar_t::seed() const
 grammar_ptr parse_grammar(Json::Value const& json)
 {
     return std::make_shared<grammar_t>(json);
-}
-
-stack_serialized_t grammar_t::serialize_state(stack_ptr stack)
-{
-    stack_serialized_t s;
-    s.rule_id = stack->rule->rule_id;
-    s.scope = to_s(stack->scope);
-    s.scope_string = stack->scope_string;
-    s.content_scope_string = stack->content_scope_string;
-    s.while_pattern = to_s(stack->while_pattern);
-    s.end_pattern = to_s(stack->end_pattern);
-    s.anchor = stack->anchor;
-    s.zw_begin_match = stack->zw_begin_match;
-    s.apply_end_last = stack->apply_end_last;
-    return s;
 }
 
 rule_ptr rule_find_rule(rule_ptr rule, int rule_id)
@@ -347,30 +359,6 @@ rule_ptr grammar_t::find_rule(grammar_t* grammar, int rule_id)
             return res;
     }
     return nullptr;
-}
-
-stack_ptr grammar_t::unserialize_state(stack_serialized_t stack)
-{
-    stack_ptr s = seed();
-    s->scope = scope::scope_t(stack.scope);
-    s->scope_string = stack.scope_string;
-    s->content_scope_string = stack.content_scope_string;
-    s->while_pattern = regexp::pattern_t(stack.while_pattern);
-    s->end_pattern = regexp::pattern_t(stack.end_pattern);
-    s->anchor = stack.anchor;
-    s->zw_begin_match = stack.zw_begin_match;
-    s->apply_end_last = stack.apply_end_last;
-
-    rule_ptr rule = find_rule(this, stack.rule_id);
-    if (!rule) {
-        printf("> rule not found %d\n", stack.rule_id);
-    }
-    s->rule = rule.get();
-    s->parent = seed();
-
-    // printf("%s\n", stack.scope.c_str());
-
-    return s;
 }
 
 } // namespace parse

@@ -73,6 +73,7 @@ public:
                   Block *block = NULL, Block *prev = NULL, Block *next = NULL);
   static theme_info_t theme_info();
   static theme_ptr theme();
+  static bool has_running_threads();
 };
 
 #endif // TE_TEXTMATE_H
