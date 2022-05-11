@@ -279,10 +279,9 @@ void dump_tokens(std::map<size_t, scope::scope_t> &scopes) {
 std::map<size_t, parse::stack_ptr> parser_states;
 std::map<size_t, std::string> block_texts;
 
-std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
-                                                   int themeId, Block *block,
-                                                   Block *prev_block,
-                                                   Block *next_block) {
+std::vector<textstyle_t>
+Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
+                          Block *block, Block *prev_block, Block *next_block) {
 
   std::vector<textstyle_t> textstyle_buffer;
 
@@ -292,14 +291,8 @@ std::vector<textstyle_t> Textmate::run_highlighter(char *_text, int langId,
 
   // printf("hl %d %s\n", block, _text);
 
-  theme_ptr theme = themes[themeId];
-  language_info_ptr lang = languages[langId];
   parse::grammar_ptr gm = lang->grammar;
-
-  if (themeInfoId != themeId) {
-    themeInfo = theme_info();
-    themeInfoId = themeId;
-  }
+  themeInfo = theme_info();
 
   std::map<size_t, scope::scope_t> scopes;
 

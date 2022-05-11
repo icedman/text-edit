@@ -69,8 +69,8 @@ public:
   static int load_language(std::string path);
   static language_info_ptr language_info(int id);
   static std::vector<textstyle_t>
-  run_highlighter(char *_text, int langId, int themeId, Block *block = NULL,
-                  Block *prev = NULL, Block *next = NULL);
+  run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
+                  Block *block = NULL, Block *prev = NULL, Block *next = NULL);
   static theme_info_t theme_info();
   static theme_ptr theme();
 };

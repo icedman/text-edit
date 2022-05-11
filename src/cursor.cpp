@@ -210,13 +210,23 @@ void Cursor::clear_selection() {
   end = start;
 }
 
-bool Cursor::is_within(int row, int column) {
-  Cursor c = normalized();
-  if (row < c.start.row || (row == c.start.row && column < c.start.column))
+bool is_point_within_range(Point p, Range r) {
+  if (p.row < r.start.row ||
+      (p.row == r.start.row && p.column < r.start.column))
     return false;
-  if (row > c.end.row || (row == c.end.row && column > c.end.column))
+  if (p.row > r.end.row || (p.row == r.end.row && p.column > r.end.column))
     return false;
   return true;
+}
+
+bool Cursor::is_within(int row, int column) {
+  Cursor c = normalized();
+  // if (row < c.start.row || (row == c.start.row && column < c.start.column))
+  //   return false;
+  // if (row > c.end.row || (row == c.end.row && column > c.end.column))
+  //   return false;
+  // return true;
+  return is_point_within_range({row, column}, c);
 }
 
 bool Cursor::is_edge(int row, int column) {

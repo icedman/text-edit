@@ -18,6 +18,7 @@ class Block {
 public:
   Block();
   int line;
+  int line_height;
   bool dirty;
   parse::stack_ptr parser_state;
   std::vector<textstyle_t> styles;
@@ -41,7 +42,6 @@ public:
   ~Document();
 
   std::string file_path;
-  std::u16string clipboard_data;
 
   TextBuffer buffer;
   TextBuffer::Snapshot *snapshot;
@@ -116,6 +116,7 @@ public:
   BlockPtr previous_block(BlockPtr block);
   BlockPtr next_block(BlockPtr block);
   void update_blocks(int line, int count);
+  void make_dirty();
 
   void indent();
   void unindent();
@@ -129,7 +130,7 @@ public:
   void clear_autocomplete(bool force = false);
   AutoCompletePtr autocomplete();
 
-  void run_search(std::u16string key);
+  void run_search(std::u16string key, Point first_index = {0, 0});
   void clear_search(bool force = false);
   SearchPtr search();
 

@@ -8,9 +8,9 @@
 
 #define SEARCH_TTL 32
 
-Search::Search(std::u16string p)
+Search::Search(std::u16string p, Point first_index)
     : key(p), state(State::Loading), snapshot(0), document(0), selected(0),
-      ttl(SEARCH_TTL) {}
+      first_index(first_index), ttl(SEARCH_TTL) {}
 
 Search::~Search() {
   if (snapshot) {
@@ -41,6 +41,15 @@ void *search_thread(void *arg) {
 
   std::u16string k = search->key;
   search->matches = snapshot->find_all(regex, Range::all_inclusive());
+
+  int idx = 0;
+  for (auto m : search->matches) {
+    if (search->first_index.row <= m.start.row) {
+      search->selected = idx;
+      break;
+    }
+    idx++;
+  }
 
   search->thread_id = 0;
   search->set_ready();

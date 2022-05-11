@@ -10,8 +10,10 @@
 #define TS_DOC_SIZE_LIMIT 10000
 #define TS_FIND_FROM_CURSOR_LIMIT 1000
 
+static std::u16string clipboard_data;
+
 Block::Block()
-    : line(0), comment_line(false), comment_block(false),
+    : line(0), line_height(1), comment_line(false), comment_block(false),
       prev_comment_block(false), dirty(true) {}
 
 Document::Document() : snapshot(0) {}
@@ -302,6 +304,12 @@ void Document::undo() {
     prev = c.old_text->content;
   }
 
+  make_dirty();
+}
+
+void Document::redo() {}
+
+void Document::make_dirty() {
   // dirty all
   while (blocks.size() < size()) {
     add_block_at(0);
@@ -310,8 +318,6 @@ void Document::undo() {
     b->make_dirty();
   }
 }
-
-void Document::redo() {}
 
 void Document::begin_cursor_markers(Cursor &cur) {
   int idx = 0;
@@ -670,7 +676,7 @@ void Document::clear_autocomplete(bool force) {
   }
 }
 
-void Document::run_search(std::u16string key) {
+void Document::run_search(std::u16string key, Point first_index) {
   if (key.size() < 3)
     return;
   if (search_key != key) {
@@ -682,7 +688,7 @@ void Document::run_search(std::u16string key) {
       }
     }
 
-    SearchPtr search = std::make_shared<Search>(key);
+    SearchPtr search = std::make_shared<Search>(key, first_index);
     search->document = this;
     search->snapshot = buffer.create_snapshot();
     searches[key] = search;
@@ -692,8 +698,7 @@ void Document::run_search(std::u16string key) {
 
 SearchPtr Document::search() {
   if (searches.find(search_key) != searches.end()) {
-    if (searches[search_key]->state != Search::State::Loading &&
-        searches[search_key]->matches.size() > 0) {
+    if (searches[search_key]->state != Search::State::Loading) {
       // searches[search_key]->set_ready();
       searches[search_key]->keep_alive();
       return searches[search_key];
@@ -723,9 +728,8 @@ void Document::clear_search(bool force) {
 }
 
 void Document::run_treesitter() {
-  if (!language || !TreeSitter::is_available(language->id)) {
+  if (!language)
     return;
-  }
 
   // disable
   if (size() > TS_DOC_SIZE_LIMIT)

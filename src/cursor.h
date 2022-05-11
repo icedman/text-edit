@@ -4,6 +4,8 @@
 #include <core/text-buffer.h>
 #include <string>
 
+bool is_point_within_range(Point p, Range r);
+
 class Document;
 class Cursor : public Range {
 public:

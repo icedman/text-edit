@@ -5,6 +5,9 @@
 #include "treesitter.h"
 #include "utf8.h"
 
+// todo
+extern bool wrap;
+
 editor_t::editor_t()
     : view_t(), request_treesitter(false), request_autocomplete(false) {
   doc = std::make_shared<Document>();
@@ -178,10 +181,23 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     request_treesitter = true;
   }
 
+  int offset_y = 0;
+  if (wrap) {
+    int s = cursor.start.row - computed.h;
+    if (s < 0)
+      s = 0;
+    for (int i = s; i < cursor.start.row; i++) {
+      BlockPtr block = doc->block_at(i);
+      if (!block)
+        break;
+      offset_y += (block->line_height - 1);
+    }
+  }
+
   int size = doc->size();
   int lead = 0;
-  if (cursor.start.row >= scroll.y + (hh - 1) - lead) {
-    scroll.y = -(hh - 1) + cursor.start.row + lead;
+  if (cursor.start.row >= scroll.y + (hh - 1) - lead - offset_y) {
+    scroll.y = -(hh - 1) + cursor.start.row + lead + offset_y;
   }
   if (scroll.y + lead > cursor.start.row) {
     scroll.y = -lead + cursor.start.row;
@@ -203,6 +219,10 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     scroll.x = size - ww / 2;
   }
   if (scroll.x < 0) {
+    scroll.x = 0;
+  }
+  // wrapped
+  if (wrap) {
     scroll.x = 0;
   }
 

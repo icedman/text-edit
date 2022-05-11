@@ -10,7 +10,7 @@ class Search {
 public:
   enum State { Loading, Ready, Consumed, Disposable };
 
-  Search(std::u16string p);
+  Search(std::u16string p, Point first_index = {0, 0});
   ~Search();
 
   std::u16string key;
@@ -20,6 +20,7 @@ public:
 
   std::vector<Range> matches;
   int selected;
+  Point first_index;
   int ttl;
   int thread_id;
 
