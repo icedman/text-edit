@@ -301,13 +301,46 @@ void Document::undo() {
       cur.end = c.new_start;
       cursors.push_back(cur.copy());
     }
+    redo_patches.push_back(
+        Redo({c.old_text->content.data(), {c.new_start, c.new_end}}));
     prev = c.old_text->content;
+  }
+  make_dirty();
+}
+
+void Document::redo() {
+  if (redo_patches.size() == 0) {
+    return;
+  }
+
+  Cursor cur = cursor();
+  cursors.clear();
+
+  int redid = 0;
+  std::u16string prev;
+  auto it = redo_patches.rbegin();
+  while (it != redo_patches.rend()) {
+    Redo c = *it++;
+    buffer.set_text_in_range(c.range, c.text.data());
+    cur.start = c.range.start;
+    cur.end = cur.start;
+    for (int i = 0; i < c.text.length(); i++) {
+      cur.move_right();
+    }
+    cursors.push_back(cur.copy());
+    redid++;
+    if (redid > 1 && prev != c.text) {
+      break;
+    }
+    prev = c.text;
+  }
+
+  for (int i = 0; i < redid; i++) {
+    redo_patches.pop_back();
   }
 
   make_dirty();
 }
-
-void Document::redo() {}
 
 void Document::make_dirty() {
   // dirty all
@@ -320,6 +353,7 @@ void Document::make_dirty() {
 }
 
 void Document::begin_cursor_markers(Cursor &cur) {
+  redo_patches.clear();
   int idx = 0;
   for (auto &c : cursors) {
     c.id = idx++;

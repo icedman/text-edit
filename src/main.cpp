@@ -823,7 +823,6 @@ int main(int argc, char **argv) {
         }
         scroll_to_selected = true;
       }
-      // if (scroll_to_selected) {
       Range range = search->matches[search->selected];
       Cursor &cursor = doc->cursor();
       if (range != cursor) {
@@ -832,8 +831,6 @@ int main(int argc, char **argv) {
         editor->on_input(-1, ""); // ping
         continue;
       }
-      // }
-
       // if (key_sequence == "enter" || key_sequence == "tab") {
       //   continue;
       // }
@@ -855,8 +852,9 @@ int main(int argc, char **argv) {
 
     if (key_sequence != "") {
       message.str(key_sequence);
-      message << " ";
+      message << " [";
       message << cmd.command;
+      message << "]";
     }
 
     if (cmd.command == "search_text") {

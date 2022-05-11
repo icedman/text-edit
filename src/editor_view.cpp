@@ -41,11 +41,12 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->clear_cursors();
     doc->clear_autocomplete(true);
   }
-
   if (cmd.command == "undo") {
     doc->undo();
   }
-
+  if (cmd.command == "redo") {
+    doc->redo();
+  }
   if (cmd.command == "copy") {
     doc->copy();
   }

@@ -51,11 +51,18 @@ public:
 
   std::u16string tab_string;
 
+  class Redo {
+  public:
+    std::u16string text;
+    Range range;
+  };
+
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;
   std::u16string search_key;
   std::map<std::u16string, SearchPtr> searches;
   std::vector<TreeSitterPtr> treesitters;
+  std::vector<Redo> redo_patches;
 
   language_info_ptr language;
 

@@ -12,7 +12,7 @@ std::map<std::string, Command> commands = {
     {"ctrl+f", Command{"search_text", ""}},
     {"ctrl+g", Command{"jump_to_line", ""}},
     {"ctrl+z", Command{"undo", ""}},
-    // {"ctrl+shift+z", Command{"redo", ""}},
+    {"alt+z", Command{"redo", ""}},
 
     {"backspace", Command{"backspace", ""}},
     {"delete", Command{"delete", ""}},
