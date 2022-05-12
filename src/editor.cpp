@@ -9,7 +9,7 @@
 
 editor_t::editor_t()
     : view_t(), request_treesitter(false), request_autocomplete(false),
-      wrap(true) {
+      wrap(true), draw_tab_stops(false) {
   doc = std::make_shared<Document>();
 }
 
@@ -97,35 +97,10 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     }
   }
   if (cmd.command == "toggle_block_fold") {
-    // requires an updated treesitter
-    if (!doc->treesitter() || request_treesitter)
-      return false;
-
-    // move to doc
-    Cursor cur = doc->cursor().normalized();
-    cur.move_to_end_of_line();
-    optional<Cursor> block_cursor = doc->block_cursor(cur);
-    if (block_cursor) {
-      if ((*block_cursor).start == Point{0, 0}) {
-        return true;
-      }
-      auto it = std::find(doc->folds.begin(), doc->folds.end(), *block_cursor);
-      if (it != doc->folds.end()) {
-        doc->folds.erase(it);
-        return true;
-      }
-      if (doc->is_within_fold(cur.start.row, cur.start.column)) {
-        return true;
-      }
-      cur.copy_from(*block_cursor);
-      cur = cur.normalized();
-      doc->folds.push_back(cur.copy());
-      doc->clear_cursors();
-      doc->cursor().copy_from(cur);
-      doc->clear_selection();
-
-      std::sort(doc->folds.begin(), doc->folds.end(), compare_range);
-    }
+    // if (doc->treesitter() && !request_treesitter && doc->cursors.size() == 1)
+    // {
+    doc->toggle_fold(doc->cursor());
+    // }
   }
   if (cmd.command == "selection_to_uppercase") {
     doc->selection_to_uppercase();
@@ -210,6 +185,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->insert_text(text);
     request_autocomplete = true;
     request_treesitter = true;
+    doc->on_input(ch);
   }
 
   if (!request_autocomplete && autocomplete) {

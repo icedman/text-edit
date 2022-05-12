@@ -21,6 +21,7 @@ struct editor_t : view_t {
   bool request_treesitter;
   bool request_autocomplete;
   bool wrap;
+  bool draw_tab_stops;
 
   std::string last_key_sequence;
 };

@@ -12,4 +12,5 @@
 * auto-complete
 * multi-cursor
 * undo/redo
+* block collapse/folding
 

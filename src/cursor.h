@@ -40,10 +40,6 @@ public:
   void delete_text(int number_of_characters = 1);
 
   std::u16string selected_text();
-
-  // bool operator==(Cursor b) {
-  //   return start == b.start && end == b.end;
-  // }
 };
 
 #endif // TE_CURSOR_H

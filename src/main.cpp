@@ -270,6 +270,8 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
 
   BlockPtr block = doc->block_at(row);
   int l = strlen(text);
+  int iz = count_indent_size(text);
+  int tz = editor->draw_tab_stops ? doc->tab_string.size() : 0;
 
   doc->cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc->cursors;
@@ -330,7 +332,6 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
     }
 
     char ch = text[i];
-
     for (auto s : styles) {
       if (s.start >= i && i < s.start + s.length) {
         int colorIdx = color_index(s.r, s.g, s.b);
@@ -346,6 +347,15 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
       }
     }
 
+    const wchar_t *_tab = L"\u2847";
+    // const wchar_t* _tab = L"\u2810";
+    // const wchar_t* _tab = L"\u2828";
+    wchar_t *tab = NULL;
+    if (tz > 0 && i < iz && i % tz == 0) {
+      pair = pair_for_color(cmt, selected, is_cursor_row);
+      tab = (wchar_t *)_tab;
+    }
+
     if (search) {
       for (auto m : search->matches) {
         m.end.column--;
@@ -358,7 +368,11 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
     }
 
     attron(COLOR_PAIR(pair));
-    addch(ch);
+    if (tab != NULL) {
+      addwstr(tab);
+    } else {
+      addch(ch);
+    }
     attroff(COLOR_PAIR(pair));
     // attroff(A_BLINK);
     // attroff(A_STANDOUT);
@@ -692,6 +706,7 @@ int main(int argc, char **argv) {
   int theme_id = Textmate::load_theme(argTheme);
   int lang_id = Textmate::load_language(file_path);
   doc->set_language(Textmate::language_info(lang_id));
+  editor->draw_tab_stops = true;
 
   theme_info_t info = Textmate::theme_info();
 
@@ -736,7 +751,6 @@ int main(int argc, char **argv) {
     if (input->focused != input->show) {
       input->show = input->focused;
       last_layout_size = -1;
-
       if (!input->show) {
         editor->doc->clear_search();
       }
@@ -943,6 +957,7 @@ int main(int argc, char **argv) {
       // message << doc->folds.size();
     }
 
+    // todo move to view
     if (cmd.command == "search_text") {
       focused = input;
       input->doc->initialize(Document::empty());

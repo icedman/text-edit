@@ -13,6 +13,30 @@
 
 static std::u16string clipboard_data;
 
+int count_indent_size(std::string text) {
+  int sz = 0;
+  for (int i = 0; i < text.length(); i++) {
+    if (text[i] == ' ') {
+      sz++;
+    } else {
+      break;
+    }
+  }
+  return sz;
+}
+
+int count_indent_size(std::u16string text) {
+  int sz = 0;
+  for (int i = 0; i < text.length(); i++) {
+    if (text[i] == u' ') {
+      sz++;
+    } else {
+      break;
+    }
+  }
+  return sz;
+}
+
 Block::Block()
     : line(0), line_height(1), comment_line(false), comment_block(false),
       prev_comment_block(false), dirty(true) {}
@@ -483,6 +507,38 @@ void Document::update_markers(Point a, Point b, Point c) {
   fold_markers.splice(a, b, c);
 }
 
+void Document::toggle_fold(Cursor curs) {
+  // requires an updated treesitter
+  if (!treesitter())
+    return;
+
+  // move to doc
+  Cursor cur = curs.normalized();
+  cur.move_to_end_of_line();
+  optional<Cursor> block = block_cursor(cur);
+  if (block) {
+    if ((*block).start == Point{0, 0}) {
+      return;
+    }
+    auto it = std::find(folds.begin(), folds.end(), *block);
+    if (it != folds.end()) {
+      folds.erase(it);
+      return;
+    }
+    if (is_within_fold(cur.start.row, cur.start.column)) {
+      return;
+    }
+    cur.copy_from(*block);
+    cur = cur.normalized();
+    folds.push_back(cur.copy());
+    clear_cursors();
+    cursor().copy_from(cur);
+    clear_selection();
+
+    std::sort(folds.begin(), folds.end(), compare_range);
+  }
+}
+
 int Document::computed_line(int line) {
   int prev_end = 0;
   for (auto f : folds) {
@@ -715,6 +771,29 @@ void Document::unindent() {
     c.id = -1;
     begin_cursor_markers(c);
     c.delete_text(tab_string.length());
+    end_cursor_markers(c);
+  }
+}
+
+void Document::auto_indent() {
+  // determine indent
+  for (auto &c : cursors) {
+    Cursor cur = c.copy();
+    cur.move_up();
+    optional<std::u16string> row = buffer.line_for_row(cur.start.row);
+    if (!row)
+      continue;
+    int sz = count_indent_size(*row);
+    optional<Cursor> block = block_cursor(cur);
+    if (block && (*block).start.row == cur.start.row) {
+      sz += tab_string.size();
+    }
+    begin_cursor_markers(c);
+    c.move_to_start_of_line();
+    for (int i = 0; i < sz; i++) {
+      c.insert_text(u" ");
+    }
+    // c.insert_text(tab_string);
     end_cursor_markers(c);
   }
 }
@@ -1023,4 +1102,10 @@ optional<Cursor> Document::span_cursor(Cursor cursor) {
     deepest = p;
   }
   return res;
+}
+
+void Document::on_input(char last_character) {
+  if (last_character == '\n') {
+    auto_indent();
+  }
 }

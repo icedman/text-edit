@@ -14,6 +14,9 @@
 #include "textmate.h"
 #include "treesitter.h"
 
+int count_indent_size(std::string text);
+int count_indent_size(std::u16string text);
+
 class Block {
 public:
   Block();
@@ -112,6 +115,7 @@ public:
   void end_fold_markers();
   void update_markers(Point a, Point b, Point c);
 
+  void toggle_fold(Cursor cursor);
   bool is_within_fold(int row, int column);
 
   std::u16string subsequence_text();
@@ -157,6 +161,10 @@ public:
 
   optional<Cursor> block_cursor(Cursor cursor);
   optional<Cursor> span_cursor(Cursor cursor);
+
+  // events
+  void on_input(char last_character);
+  void auto_indent();
 };
 
 typedef std::shared_ptr<Document> DocumentPtr;
