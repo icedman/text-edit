@@ -1,6 +1,7 @@
 #include "document.h"
 #include "utf8.h"
 
+#include <algorithm>
 #include <core/encoding-conversion.h>
 #include <core/regex.h>
 #include <fstream>
@@ -280,13 +281,24 @@ void Document::undo() {
   if (!snapshot)
     return;
 
-  Cursor cur = cursor();
-  cursors.clear();
+  if (folds.size() > 0) {
+    folds.clear();
+    return;
+  }
 
   // buffer.flush_changes();
 
   auto patch = buffer.get_inverted_changes(snapshot);
   std::vector<Patch::Change> changes = patch.get_changes();
+  if (!changes.size()) {
+    return;
+  }
+
+  Cursor cur = cursor();
+  cursors.clear();
+
+  // limitation
+  // begin_fold_markers();
 
   std::u16string prev;
   auto it = changes.rbegin();
@@ -296,6 +308,10 @@ void Document::undo() {
       break;
     Range range = Range({c.old_start, c.old_end});
     buffer.set_text_in_range(range, c.new_text->content.data());
+
+    // delete / insert
+    // update_markers(c.old_start, {0,0}, {0, c.new_text->content.size()});
+
     if (cur.start != c.new_end && cur.end != c.new_start) {
       cur.start = c.new_end;
       cur.end = c.new_start;
@@ -303,8 +319,10 @@ void Document::undo() {
     }
     redo_patches.push_back(
         Redo({c.old_text->content.data(), {c.new_start, c.new_end}}));
+
     prev = c.old_text->content;
   }
+
   make_dirty();
 }
 
@@ -315,6 +333,11 @@ void Document::redo() {
 
   Cursor cur = cursor();
   cursors.clear();
+
+  if (folds.size() > 0) {
+    folds.clear();
+    return;
+  }
 
   int redid = 0;
   std::u16string prev;
@@ -359,6 +382,7 @@ void Document::begin_cursor_markers(Cursor &cur) {
     c.id = idx++;
     cursor_markers.insert(c.id, c.start, c.end);
   }
+  begin_fold_markers();
 }
 
 void Document::end_cursor_markers(Cursor &cur) {
@@ -369,11 +393,77 @@ void Document::end_cursor_markers(Cursor &cur) {
     }
     cursor_markers.remove(c.id);
   }
+  end_fold_markers();
+}
+
+void Document::begin_fold_markers() {
+  int idx = 0;
+  for (auto &c : folds) {
+    c.id = idx++;
+    fold_markers.insert(c.id, c.start, c.end);
+  }
+}
+
+void Document::end_fold_markers() {
+  std::vector<Cursor> disposables;
+
+  for (auto &c : folds) {
+    c.start = fold_markers.get_start(c.id);
+    c.end = fold_markers.get_end(c.id);
+    fold_markers.remove(c.id);
+    if (c.end.row - c.start.row == 0) {
+      disposables.push_back(c);
+    }
+  }
+
+  for (auto c : disposables) {
+    auto it = std::find(folds.begin(), folds.end(), c);
+    if (it != folds.end()) {
+      folds.erase(it);
+    }
+  }
+}
+
+bool Document::is_within_fold(int row, int column) {
+  for (auto f : folds) {
+    if (is_point_within_range({row, column}, {f.start, f.end})) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Document::update_markers(Point a, Point b, Point c) {
+  cursor_markers.splice(a, b, c);
+  fold_markers.splice(a, b, c);
+}
+
+int Document::computed_line(int line) {
+  for (auto f : folds) {
+    if (line > f.start.row) {
+      line += f.end.row - f.start.row;
+    }
+  }
+  return line;
+}
+
+int Document::computed_size() {
+  int l = size();
+  int sz = 0;
+  for (auto f : folds) {
+    sz += f.start.row - f.end.row;
+  }
+  l -= sz;
+  if (l < 1) {
+    l = 1;
+  }
+  return l;
 }
 
 int Document::size() { return buffer.extent().row; }
 
 BlockPtr Document::block_at(int line) {
+
   if (line >= blocks.size() || line < 0)
     return NULL;
   if (blocks[line]->line != line) {

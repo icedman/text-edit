@@ -46,8 +46,10 @@ public:
   TextBuffer buffer;
   TextBuffer::Snapshot *snapshot;
   MarkerIndex cursor_markers;
+  MarkerIndex fold_markers;
   std::vector<Cursor> cursors;
   std::vector<BlockPtr> blocks;
+  std::vector<Cursor> folds;
 
   std::u16string tab_string;
 
@@ -91,6 +93,9 @@ public:
 
   void go_to_line(int line);
 
+  int computed_line(int line);
+  int computed_size();
+
   void selection_to_uppercase();
   void selection_to_lowercase();
   void select_word_from_cursor();
@@ -101,6 +106,11 @@ public:
   void add_cursor(Cursor cursor);
   void begin_cursor_markers(Cursor &cursor);
   void end_cursor_markers(Cursor &cursor);
+  void begin_fold_markers();
+  void end_fold_markers();
+  void update_markers(Point a, Point b, Point c);
+
+  bool is_within_fold(int row, int column);
 
   std::u16string subsequence_text();
   optional<Range> subsequence_range();

@@ -5,6 +5,8 @@
 #include "treesitter.h"
 #include "utf8.h"
 
+#include <algorithm>
+
 // todo
 extern bool wrap;
 
@@ -43,9 +45,11 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   }
   if (cmd.command == "undo") {
     doc->undo();
+    request_treesitter = true;
   }
   if (cmd.command == "redo") {
     doc->redo();
+    request_treesitter = true;
   }
   if (cmd.command == "copy") {
     doc->copy();
@@ -69,15 +73,47 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->move_to_start_of_line();
     doc->move_to_end_of_line(true);
   }
-  if (cmd.command == "expand_cursor") {
+  if (cmd.command == "expand_to_block") {
+    // move to doc
     Cursor cur = doc->cursor().normalized();
+    cur.move_left();
+    cur.move_left();
     optional<Cursor> block_cursor = doc->block_cursor(cur);
     if (block_cursor) {
       doc->clear_cursors();
       doc->cursor().copy_from(*block_cursor);
     }
   }
-  if (cmd.command == "contract_cursor") {
+  if (cmd.command == "toggle_block_fold") {
+    // requires an updated treesitter
+    if (!doc->treesitter() || request_treesitter)
+      return false;
+
+    // move to doc
+    Cursor cur = doc->cursor().normalized();
+    cur.move_to_end_of_line();
+    optional<Cursor> block_cursor = doc->block_cursor(cur);
+    if (block_cursor) {
+      if ((*block_cursor).start == Point{0, 0}) {
+        return true;
+      }
+      auto it = std::find(doc->folds.begin(), doc->folds.end(), *block_cursor);
+      if (it != doc->folds.end()) {
+        doc->folds.erase(it);
+        return true;
+      }
+      if (doc->is_within_fold(cur.start.row, cur.start.column)) {
+        return true;
+      }
+      cur.copy_from(*block_cursor);
+      cur = cur.normalized();
+      doc->folds.push_back(cur.copy());
+      doc->clear_cursors();
+      doc->cursor().copy_from(cur);
+      doc->clear_selection();
+
+      std::sort(doc->folds.begin(), doc->folds.end(), compare_range);
+    }
   }
   if (cmd.command == "selection_to_uppercase") {
     doc->selection_to_uppercase();
@@ -194,14 +230,21 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
       offset_y += (block->line_height - 1);
     }
   }
+  int offset_folds = 0;
+  for (auto f : doc->folds) {
+    if (cursor.start.row > f.start.row) {
+      offset_folds += (f.end.row - f.start.row);
+    }
+  }
 
   int size = doc->size();
   int lead = 0;
-  if (cursor.start.row >= scroll.y + (hh - 1) - lead - offset_y) {
-    scroll.y = -(hh - 1) + cursor.start.row + lead + offset_y;
+  if (cursor.start.row >=
+      scroll.y + (hh - 1) - lead - offset_y + offset_folds) {
+    scroll.y = -(hh - 1) + cursor.start.row + lead + offset_y - offset_folds;
   }
-  if (scroll.y + lead > cursor.start.row) {
-    scroll.y = -lead + cursor.start.row;
+  if (scroll.y + lead + offset_folds > cursor.start.row) {
+    scroll.y = -lead + cursor.start.row - offset_folds;
   }
   if (scroll.y + hh / 2 > size) {
     scroll.y = size - hh / 2;
@@ -283,7 +326,8 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
   }
   last_key_sequence = "";
 
-  std::vector<std::string> drop_commands = {"save", "indent", "unindent"};
+  std::vector<std::string> drop_commands = {"save", "indent", "unindent",
+                                            "toggle_block_fold", "tab"};
 
   for (auto d : drop_commands) {
     if (cmd.command == d) {

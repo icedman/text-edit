@@ -26,7 +26,7 @@ struct grammar_t {
     stack_ptr seed() const;
     std::mutex& mutex() { return _mutex; }
     Json::Value document() { return doc; }
-    
+
     static int running_threads;
 
 private:
@@ -41,7 +41,7 @@ private:
         rule_stack_t const* parent;
     };
 
-    static void* setup_includes_thread(void *arg);
+    static void* setup_includes_thread(void* arg);
 
     struct setup_includes_payload_t {
         grammar_t* _this;

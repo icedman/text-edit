@@ -344,7 +344,7 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
     style_t style = theme->styles_for_scope(scopeName);
 
     scopeName = scope.back();
-    // printf(">%s\n", scopeName.c_str());
+    // printf(">%s %d\n", scopeName.c_str());
 
     span_info_t span = {.start = (int)n,
                         .length = (int)(l - n),
@@ -383,6 +383,10 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
 
   int idx = 0;
   textstyle_t *prev = NULL;
+
+  if (spans.size() == 1) {
+    return textstyle_buffer;
+  }
 
   for (int i = 0; i < l && i < MAX_STYLED_SPANS; i++) {
     textstyle_buffer.push_back(construct_style(spans, i));
@@ -477,7 +481,6 @@ char *icon_for_filename(char *filename) {
   return text_buffer;
 }
 
-bool Textmate::has_running_threads()
-{
+bool Textmate::has_running_threads() {
   return parse::grammar_t::running_threads > 0;
 }

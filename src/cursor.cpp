@@ -1,10 +1,38 @@
 #include "cursor.h"
 #include "document.h"
 
+bool compare_range(Range a, Range b) {
+  size_t aline = a.start.row;
+  size_t bline = b.start.row;
+  if (aline != bline) {
+    return aline < bline;
+  }
+  return a.start.column < b.start.column;
+}
+
 void Cursor::move_up(bool anchor) {
+  int prev_row = start.row;
   if (start.row > 0) {
     start.row--;
   }
+
+  bool is_folded = false;
+  do {
+    is_folded = false;
+    for (auto f : document->folds) {
+      Cursor cur = f.copy();
+      cur.end.row++;
+      if (is_point_within_range({start.row, 0}, f)) {
+        start.row--;
+        is_folded = true;
+        break;
+      }
+    }
+  } while (is_folded);
+  if (start.row < 0) {
+    start.row = prev_row;
+  }
+
   int l = *(*buffer).line_length_for_row(start.row);
   ;
   if (start.column > l) {
@@ -16,11 +44,28 @@ void Cursor::move_up(bool anchor) {
 }
 
 void Cursor::move_down(bool anchor) {
+  int prev_row = start.row;
   start.row++;
+
+  bool is_folded = false;
+  do {
+    is_folded = false;
+    for (auto f : document->folds) {
+      Cursor cur = f.copy();
+      cur.end.row++;
+      if (is_point_within_range({start.row, 0}, f)) {
+        start.row++;
+        is_folded = true;
+        break;
+      }
+    }
+  } while (is_folded);
+
   int size = document->size();
   if (start.row > size) {
-    start.row = size;
+    start.row = prev_row;
   }
+
   int l = *(*buffer).line_length_for_row(start.row);
   ;
   if (start.column > l) {
@@ -246,7 +291,8 @@ void Cursor::insert_text(std::u16string text) {
   if (size_diff > 0) {
     r = size_diff;
   }
-  document->cursor_markers.splice(range.start, {0, 0}, {r, text.size()});
+  // document->cursor_markers.splice(range.start, {0, 0}, {r, text.size()});
+  document->update_markers(range.start, {0, 0}, {r, text.size()});
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
   for (int i = 0; i < text.size(); i++) {
@@ -272,7 +318,8 @@ void Cursor::delete_text(int number_of_characters) {
       r = -size_diff;
       c = 0;
     }
-    document->cursor_markers.splice(range.start, {r, c}, {0, 0});
+    // document->cursor_markers.splice(range.start, {r, c}, {0, 0});
+    document->update_markers(range.start, {r, c}, {0, 0});
     document->update_blocks(range.start.row, size_diff);
     clear_selection();
   }

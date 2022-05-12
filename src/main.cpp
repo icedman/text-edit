@@ -230,7 +230,8 @@ void draw_gutter(EditorPtr editor, view_ptr view) {
       break;
 
     int line = start + i;
-    BlockPtr block = doc->block_at(line);
+    int computed_line = doc->computed_line(line);
+    BlockPtr block = doc->block_at(computed_line);
     if (!block) {
       move(idx++, view->computed.x);
       draw_clear(view->computed.w);
@@ -239,8 +240,9 @@ void draw_gutter(EditorPtr editor, view_ptr view) {
 
     if (line >= view_start && line < view_end) {
       std::stringstream s;
-      s << (line + 1);
-      draw_gutter_line(editor, view, idx, line, s.str().c_str(), block->styles);
+      s << (computed_line + 1);
+      draw_gutter_line(editor, view, idx, computed_line, s.str().c_str(),
+                       block->styles);
       idx++;
       for (int j = 1; j < block->line_height; j++) {
         move(idx++, view->computed.x);
@@ -272,6 +274,14 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
 
   int edge = pair_for_color(fg, true, false);
   *height = 1;
+
+  bool is_folded = false;
+  for (auto f : doc->folds) {
+    if (f.start.row == row) {
+      is_folded = true;
+      break;
+    }
+  }
 
   bool is_cursor_row = editor->focused && row == doc->cursor().start.row;
   int default_pair = pair_for_color(fg, false, is_cursor_row);
@@ -354,6 +364,15 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
     attroff(A_UNDERLINE);
   }
 
+  if (is_folded) {
+    // attron(A_BLINK);
+    attron(COLOR_PAIR(edge));
+    addwstr(L"\u00b1");
+    attroff(COLOR_PAIR(edge));
+    // attroff(A_BLINK);
+    l += 1;
+  }
+
   if (is_cursor_row) {
     move(screen_row, screen_col + l);
     for (int i = 0; i < editor->computed.w - l - scroll_x; i++) {
@@ -384,26 +403,27 @@ void draw_text_buffer(EditorPtr editor) {
   int start = scroll_y - vh / 2;
   if (start < 0)
     start = 0;
-  for (int i = 0; i < (vh * 1.5); i++) {
+  for (int i = 0; i < vh * 2; i++) {
     if (idx + offset_y > editor->computed.h)
       break;
 
     int line = start + i;
-    BlockPtr block = doc->block_at(line);
+    int computed_line = doc->computed_line(line);
+
+    BlockPtr block = doc->block_at(computed_line);
     if (!block) {
-      move(line + editor->computed.y, editor->computed.x);
-      clrtoeol();
-      continue;
+      // ERROR!
+      break;
     }
 
-    optional<std::u16string> row = text.line_for_row(line);
+    optional<std::u16string> row = text.line_for_row(computed_line);
     std::stringstream s;
     if (row) {
       s << u16string_to_string(*row);
       s << " ";
     }
     if (block->dirty) {
-      if (doc->language) {
+      if (doc->language && !doc->language->definition.isNull()) {
         block->styles = Textmate::run_highlighter(
             (char *)s.str().c_str(), doc->language, Textmate::theme(),
             block.get(), doc->previous_block(block).get(),
@@ -414,7 +434,7 @@ void draw_text_buffer(EditorPtr editor) {
 
     if (line >= view_start && line < view_end) {
       int line_height = 1;
-      draw_text_line(editor, (idx++) + offset_y, line, s.str().c_str(),
+      draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
                      block->styles, &line_height);
       if (line_height > 1) {
         offset_y += (line_height - 1);
@@ -551,6 +571,23 @@ void draw_tree_sitter(EditorPtr editor, view_ptr view, TreeSitterPtr treesitter,
     addstr(ss.str().substr(0, view->computed.w).c_str());
     attroff(COLOR_PAIR(pair));
   }
+
+  for (auto f : doc->folds) {
+    std::stringstream ss;
+    ss << "fold: ";
+    ss << f.start.row;
+    ss << ",";
+    ss << f.start.column;
+    ss << "-";
+    ss << f.end.row;
+    ss << ",";
+    ss << f.end.column;
+    int pair = def;
+    attron(COLOR_PAIR(pair));
+    move(view->computed.y + row++, view->computed.x);
+    addstr(ss.str().substr(0, view->computed.w).c_str());
+    attroff(COLOR_PAIR(pair));
+  }
 }
 
 bool get_dimensions() {
@@ -656,7 +693,7 @@ int main(int argc, char **argv) {
 
   EditorPtr focused = editor;
 
-  int warm_start = 5;
+  int warm_start = 3;
   int last_layout_size = -1;
   std::string last_key_sequence;
   bool running = true;
@@ -765,7 +802,7 @@ int main(int argc, char **argv) {
       if (frames > 2000) {
         frames = 0;
         idle++;
-        if (Textmate::has_running_threads() || warm_start-- > 0) {
+        if (Textmate::has_running_threads() || (warm_start-- > 0)) {
           editor->doc->make_dirty();
           break;
         }
@@ -860,6 +897,8 @@ int main(int argc, char **argv) {
       message << " [";
       message << cmd.command;
       message << "]";
+      message << " ";
+      message << doc->folds.size();
     }
 
     if (cmd.command == "search_text") {
@@ -933,7 +972,7 @@ int main(int argc, char **argv) {
   // printf(">%s\n", doc->language->id.c_str());
 
   int idx = 20;
-  while(Textmate::has_running_threads() && idx-- > 0) {
+  while (Textmate::has_running_threads() && idx-- > 0) {
     delay(50);
   }
   return 0;
