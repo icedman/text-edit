@@ -19,15 +19,13 @@
 
 #include "cursor.h"
 #include "document.h"
-#include "editor_view.h"
+#include "editor.h"
 #include "input.h"
 #include "keybindings.h"
 #include "textmate.h"
 #include "theme.h"
 #include "utf8.h"
 #include "view.h"
-
-std::vector<std::string> outputs;
 
 // theme
 bool use_system_colors = true;
@@ -38,9 +36,6 @@ int sel = 0;
 int cmt = 0;
 int width = 0;
 int height = 0;
-int theme_id = -1;
-int lang_id = -1;
-bool wrap = true;
 
 #define TIMER_BEGIN                                                            \
   clock_t start, end;                                                          \
@@ -201,9 +196,6 @@ void draw_gutter_line(EditorPtr editor, view_ptr view, int screen_row, int row,
   attron(COLOR_PAIR(pair));
   move(screen_row, screen_col);
   draw_clear(view->computed.w);
-  // for (int i = 0; i < view->computed.w; i++) {
-  //   addch(' ');
-  // }
   move(screen_row, screen_col + view->computed.w - l - 1);
   addstr(text);
   attroff(COLOR_PAIR(pair));
@@ -225,8 +217,17 @@ void draw_gutter(EditorPtr editor, view_ptr view) {
   int start = scroll_y - vh / 2;
   if (start < 0)
     start = 0;
-  for (int i = 0; i < (vh * 1.5); i++) {
-    if (idx > view->computed.h)
+
+  // inefficient clear
+  idx = 0;
+  while (idx < editor->computed.h) {
+    move(idx++, view->computed.x);
+    draw_clear(view->computed.w);
+  }
+
+  idx = 0;
+  for (int i = 0; i < vh * 2; i++) {
+    if (idx > editor->computed.h)
       break;
 
     int line = start + i;
@@ -245,8 +246,9 @@ void draw_gutter(EditorPtr editor, view_ptr view) {
                        block->styles);
       idx++;
       for (int j = 1; j < block->line_height; j++) {
-        move(idx++, view->computed.x);
-        draw_clear(view->computed.w);
+        idx++;
+        //   move(idx++, view->computed.x);
+        //   draw_clear(view->computed.w);
       }
     }
   }
@@ -275,22 +277,23 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
   int edge = pair_for_color(fg, true, false);
   *height = 1;
 
-  bool is_folded = false;
+  int fold_size = 0;
   for (auto f : doc->folds) {
     if (f.start.row == row) {
-      is_folded = true;
+      fold_size = f.end.row - f.start.row;
       break;
     }
   }
 
-  bool is_cursor_row = editor->focused && row == doc->cursor().start.row;
+  bool is_cursor_row =
+      (editor->focused && (row == doc->cursor().start.row || fold_size));
   int default_pair = pair_for_color(fg, false, is_cursor_row);
   for (int i = scroll_x; i < l; i++) {
     int pair = default_pair;
     bool selected = false;
 
     if (i - scroll_x + 1 > (editor->computed.w * (*height))) {
-      if (!wrap) {
+      if (!editor->wrap) {
         break;
       }
       screen_col = editor->computed.x;
@@ -364,21 +367,28 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
     attroff(A_UNDERLINE);
   }
 
-  if (is_folded) {
-    // attron(A_BLINK);
-    attron(COLOR_PAIR(edge));
-    addwstr(L"\u00b1");
-    attroff(COLOR_PAIR(edge));
-    // attroff(A_BLINK);
-    l += 1;
+  char spacer = ' ';
+  int pair = default_pair;
+  if (fold_size) {
+    pair = pair_for_color(cmt, false, true);
+    std::stringstream ss;
+    // ss << "+ ";
+    // ss << fold_size;
+    // ss << " lines ";
+    attron(COLOR_PAIR(pair));
+    // addwstr(L"\u00b1");
+    addstr(ss.str().c_str());
+    attroff(COLOR_PAIR(pair));
+    l += ss.str().size();
+    spacer = '-';
   }
 
-  if (is_cursor_row) {
+  if (is_cursor_row || fold_size) {
     move(screen_row, screen_col + l);
     for (int i = 0; i < editor->computed.w - l - scroll_x; i++) {
-      attron(COLOR_PAIR(default_pair));
-      addch(' ');
-      attroff(COLOR_PAIR(default_pair));
+      attron(COLOR_PAIR(pair));
+      addch(spacer);
+      attroff(COLOR_PAIR(pair));
     }
   }
 }
@@ -403,9 +413,14 @@ void draw_text_buffer(EditorPtr editor) {
   int start = scroll_y - vh / 2;
   if (start < 0)
     start = 0;
+
+  int loops = 0;
+  int hl = 0;
   for (int i = 0; i < vh * 2; i++) {
     if (idx + offset_y > editor->computed.h)
       break;
+
+    loops++;
 
     int line = start + i;
     int computed_line = doc->computed_line(line);
@@ -422,17 +437,20 @@ void draw_text_buffer(EditorPtr editor) {
       s << u16string_to_string(*row);
       s << " ";
     }
-    if (block->dirty) {
-      if (doc->language && !doc->language->definition.isNull()) {
-        block->styles = Textmate::run_highlighter(
-            (char *)s.str().c_str(), doc->language, Textmate::theme(),
-            block.get(), doc->previous_block(block).get(),
-            doc->next_block(block).get());
-      }
-      block->dirty = false;
-    }
 
     if (line >= view_start && line < view_end) {
+      if (block->dirty) {
+        if (doc->language && !doc->language->definition.isNull()) {
+          block->styles = Textmate::run_highlighter(
+              (char *)s.str().c_str(), doc->language, Textmate::theme(),
+              block.get(), doc->previous_block(block).get(),
+              doc->next_block(block).get());
+
+          hl = idx;
+        }
+        block->dirty = false;
+      }
+
       int line_height = 1;
       draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
                      block->styles, &line_height);
@@ -441,6 +459,11 @@ void draw_text_buffer(EditorPtr editor) {
       }
     }
   }
+
+  // move(0, 10);
+  // char tmp[128];
+  // sprintf(tmp, ">%d %d\n", hl, loops);
+  // addstr(tmp);
 }
 
 void draw_search(EditorPtr editor, SearchPtr search) {
@@ -496,17 +519,22 @@ void draw_autocomplete(EditorPtr editor, AutoCompletePtr autocomplete) {
 
   screen_col -= margin;
 
-  for (auto m : autocomplete->matches) {
-    int pair = autocomplete->selected == row ? sel : def;
+  int start = 0;
+  if (autocomplete->selected >= h) {
+    start = (autocomplete->selected) - h;
+  }
+  for (int i = start; i < autocomplete->matches.size(); i++) {
+    auto m = autocomplete->matches[i];
+    int pair = autocomplete->selected == i ? sel : def;
     int screen_row = editor->cursor.y + 1 + row++;
-    std::string text = u16string_to_string(m.string);
+    std::string text = u16string_to_string(m.string).substr(0, w - 1);
     attron(COLOR_PAIR(pair));
     move(screen_row + offset_row, screen_col);
     draw_clear(w);
     move(screen_row + offset_row, screen_col + margin);
     addstr(text.c_str());
     attroff(COLOR_PAIR(pair));
-    if (row > 10)
+    if (row > h)
       break;
   }
 }
@@ -661,9 +689,9 @@ int main(int argc, char **argv) {
   }
 
   Textmate::initialize("/home/iceman/.editor/extensions/");
-  theme_id = Textmate::load_theme(argTheme);
-  lang_id = Textmate::load_language(file_path);
-  doc->language = Textmate::language_info(lang_id);
+  int theme_id = Textmate::load_theme(argTheme);
+  int lang_id = Textmate::load_language(file_path);
+  doc->set_language(Textmate::language_info(lang_id));
 
   theme_info_t info = Textmate::theme_info();
 
@@ -696,6 +724,7 @@ int main(int argc, char **argv) {
   int warm_start = 3;
   int last_layout_size = -1;
   std::string last_key_sequence;
+
   bool running = true;
   while (running) {
     DocumentPtr doc = editor->doc;
@@ -719,7 +748,6 @@ int main(int argc, char **argv) {
       s << size;
       gutter->frame.w = s.str().size();
       layout(root);
-      editor->doc->make_dirty();
       last_layout_size = size;
     }
 
@@ -731,11 +759,17 @@ int main(int argc, char **argv) {
 
     // status
     std::stringstream ss;
+    if (doc->insert_mode) {
+      ss << "INS   ";
+    } else {
+      ss << "OVR   ";
+    }
     ss << doc->language->id;
     ss << "  ";
-    ss << " line ";
+    // ss << " line ";
     ss << (cursor.start.row + 1);
-    ss << " col ";
+    // ss << " col ";
+    ss << ",";
     ss << (cursor.start.column + 1);
     ss << "  ";
     if (size > 0) {
@@ -774,11 +808,10 @@ int main(int argc, char **argv) {
     curs_set(1);
     refresh();
 
-    int idle = 0;
     int ch = -1;
     std::string key_sequence;
     int frames = 0;
-
+    int idle = 0;
     while (running) {
       ch = readKey(key_sequence);
       if (ch != -1) {
@@ -808,8 +841,13 @@ int main(int argc, char **argv) {
         }
       }
 
-      if (idle > 8)
+      if (idle > 8) {
         delay(50);
+        if (idle > 32) {
+          delay(150);
+          curs_set(0);
+        }
+      }
     }
 
     curs_set(0);
@@ -893,12 +931,16 @@ int main(int argc, char **argv) {
     last_key_sequence = "";
 
     if (key_sequence != "") {
-      message.str(key_sequence);
+      message.str("");
       message << " [";
-      message << cmd.command;
+      if (cmd.command != "") {
+        message << cmd.command;
+      } else {
+        message << key_sequence;
+      }
       message << "]";
-      message << " ";
-      message << doc->folds.size();
+      // message << " ";
+      // message << doc->folds.size();
     }
 
     if (cmd.command == "search_text") {
@@ -949,11 +991,6 @@ int main(int argc, char **argv) {
       layout(root);
       editor->doc->make_dirty();
     }
-    if (cmd.command == "toggle_wrap") {
-      wrap = !wrap;
-      editor->doc->make_dirty();
-      editor->on_input(-1, ""); // ping
-    }
     if (cmd.command == "quit") {
       running = false;
     }
@@ -964,13 +1001,7 @@ int main(int argc, char **argv) {
 
   endwin();
 
-  for (auto k : outputs) {
-    printf(">%s\n", k.c_str());
-  }
-
-  // printf("%s\n", doc->buffer.get_dot_graph().c_str());
-  // printf(">%s\n", doc->language->id.c_str());
-
+  // shutting down...
   int idx = 20;
   while (Textmate::has_running_threads() && idx-- > 0) {
     delay(50);

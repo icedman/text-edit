@@ -384,9 +384,9 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
   int idx = 0;
   textstyle_t *prev = NULL;
 
-  if (spans.size() == 1) {
-    return textstyle_buffer;
-  }
+  // if (spans.size() == 1) {
+  //   return textstyle_buffer;
+  // }
 
   for (int i = 0; i < l && i < MAX_STYLED_SPANS; i++) {
     textstyle_buffer.push_back(construct_style(spans, i));
@@ -459,7 +459,7 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
   }
 
   if (next_block) {
-    if (next_block->comment_block != block->comment_block) {
+    if (next_block->prev_comment_block != block->comment_block) {
       next_block->make_dirty();
     }
   }

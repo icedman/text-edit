@@ -14,11 +14,13 @@ struct editor_t : view_t {
   bool on_idle(int frame);
   bool on_input(int ch, std::string key_sequence);
   void on_draw();
+  void update_scroll();
 
   DocumentPtr doc;
 
   bool request_treesitter;
   bool request_autocomplete;
+  bool wrap;
 
   std::string last_key_sequence;
 };

@@ -28,6 +28,7 @@ std::map<std::string, std::function<const TSLanguage *()>> ts_languages = {
     {"html", tree_sitter_html},
     {"xml", tree_sitter_html},
     {"java", tree_sitter_java},
+    {"javascript", tree_sitter_javascript},
     {"js", tree_sitter_javascript},
     {"json", tree_sitter_json},
     {"python", tree_sitter_python},

@@ -17,7 +17,13 @@ Block::Block()
     : line(0), line_height(1), comment_line(false), comment_block(false),
       prev_comment_block(false), dirty(true) {}
 
-Document::Document() : snapshot(0) {}
+void Block::make_dirty() {
+  dirty = true;
+  words.clear();
+  line_height = 1;
+}
+
+Document::Document() : snapshot(0), insert_mode(true) {}
 
 Document::~Document() {
   if (snapshot) {
@@ -67,6 +73,35 @@ void Document::initialize(std::u16string &str) {
   }
 
   run_treesitter();
+}
+
+void Document::set_language(language_info_ptr lang) {
+  language = lang;
+  comment_string = u"";
+
+  // comments
+  // if (j['comments'] != null) {
+  //   final comments = j['comments'] ?? {};
+  //   if (comments['lineComment'] != null) {
+  //     l.lineComment = comments['lineComment'];
+  //   }
+  //   if (comments['blockComment'] != null) {
+  //     l.blockComment = [];
+  //     for (final c in comments['blockComment']) {
+  //       l.blockComment.add('$c');
+  //     }
+  //   }
+  // }
+
+  Json::Value comments = lang->definition["comments"];
+  if (comments.isObject()) {
+    Json::Value comment_line = comments["lineComment"];
+    if (comment_line.isString()) {
+      std::string scomment = comment_line.asString();
+      scomment += " ";
+      comment_string = string_to_u16string(scomment);
+    }
+  }
 }
 
 bool Document::load(std::string path) {
@@ -365,12 +400,22 @@ void Document::redo() {
   make_dirty();
 }
 
-void Document::make_dirty() {
+void Document::make_dirty(int line) {
   // dirty all
   while (blocks.size() < size()) {
     add_block_at(0);
   }
-  for (auto b : blocks) {
+
+  while (blocks.size() > size()) {
+    blocks.pop_back();
+  }
+
+  auto it = blocks.begin();
+  if (line >= size())
+    return;
+  it += line;
+  while (it != blocks.end()) {
+    BlockPtr b = *it++;
     b->make_dirty();
   }
 }
@@ -439,10 +484,14 @@ void Document::update_markers(Point a, Point b, Point c) {
 }
 
 int Document::computed_line(int line) {
+  int prev_end = 0;
   for (auto f : folds) {
+    if (f.start.row < prev_end)
+      continue;
     if (line > f.start.row) {
       line += f.end.row - f.start.row;
     }
+    prev_end = f.end.row;
   }
   return line;
 }
@@ -450,8 +499,12 @@ int Document::computed_line(int line) {
 int Document::computed_size() {
   int l = size();
   int sz = 0;
+  int prev_end = 0;
   for (auto f : folds) {
+    if (f.start.row < prev_end)
+      continue;
     sz += f.start.row - f.end.row;
+    prev_end = f.end.row;
   }
   l -= sz;
   if (l < 1) {
@@ -466,6 +519,7 @@ BlockPtr Document::block_at(int line) {
 
   if (line >= blocks.size() || line < 0)
     return NULL;
+
   if (blocks[line]->line != line) {
     blocks[line]->make_dirty();
     blocks[line]->line = line;
@@ -506,12 +560,11 @@ void Document::update_blocks(int line, int count) {
   if (!block) {
     return;
   }
-  block->make_dirty();
 
-  // todo... detect change at run_highlighter
-  BlockPtr next_block = block_at(line + 1);
-  if (next_block)
-    next_block->make_dirty();
+  block->make_dirty();
+  BlockPtr next = next_block(block);
+  if (next)
+    next->make_dirty();
 
   if (count == 0)
     return;
@@ -523,11 +576,6 @@ void Document::update_blocks(int line, int count) {
       add_block_at(line);
     }
   }
-  // std::stringstream s;
-  // s << blocks.size();
-  // s << "/";
-  // s << size();
-  // outputs.push_back(s.str());
 }
 
 // todo ... move to thread?
@@ -541,15 +589,22 @@ optional<Range> Document::find_from_cursor(std::u16string text, Cursor cursor) {
   Regex::MatchResult res = {Regex::MatchResult::None, 0, 0};
 
   for (int i = 0; i < TS_FIND_FROM_CURSOR_LIMIT; i++) {
-    int line = cursor.start.row + i + 1;
+    int line = cursor.start.row + i;
     optional<std::u16string> row = buffer.line_for_row(line);
     if (!row) {
       break;
     }
-    char16_t *_str = (char16_t *)(*row).c_str();
+    std::u16string _row = *row;
+    int offset = 0;
+    if (i == 0) {
+      offset = cursor.start.column;
+      _row = _row.substr(offset);
+    }
+    char16_t *_str = (char16_t *)(_row).c_str();
     res = regex.match(_str, strlen((char *)_str), data);
     if (res.type == Regex::MatchResult::Full) {
-      range = Range({line, res.start_offset}, {line, res.end_offset});
+      range = Range({line, res.start_offset + offset},
+                    {line, res.end_offset + offset});
       break;
     }
   }
@@ -670,7 +725,6 @@ void Document::toggle_comment() {
     return;
   }
 
-  std::u16string comment_string = u"// ";
   std::map<int, int> comment_indices;
   std::vector<int> filtered_lines;
 

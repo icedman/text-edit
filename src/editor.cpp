@@ -1,4 +1,4 @@
-#include "editor_view.h"
+#include "editor.h"
 #include "autocomplete.h"
 #include "input.h"
 #include "keybindings.h"
@@ -7,17 +7,13 @@
 
 #include <algorithm>
 
-// todo
-extern bool wrap;
-
 editor_t::editor_t()
-    : view_t(), request_treesitter(false), request_autocomplete(false) {
+    : view_t(), request_treesitter(false), request_autocomplete(false),
+      wrap(true) {
   doc = std::make_shared<Document>();
 }
 
 bool editor_t::on_input(int ch, std::string key_sequence) {
-  int hh = computed.h;
-
   AutoCompletePtr autocomplete = doc->autocomplete();
   SearchPtr search = doc->search();
 
@@ -54,6 +50,9 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   if (cmd.command == "copy") {
     doc->copy();
   }
+  if (cmd.command == "insert") {
+    doc->insert_mode = !doc->insert_mode;
+  }
   if (cmd.command == "cut") {
     doc->copy();
     doc->delete_text();
@@ -69,9 +68,22 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->move_to_start_of_document();
     doc->move_to_end_of_document(true);
   }
+  if (cmd.command == "duplicate_selection") {
+    if (doc->has_selection()) {
+      doc->copy();
+    }
+    // std::u16string selected_text = doc->selected_text();
+    doc->move_right();
+    doc->paste();
+  }
   if (cmd.command == "select_line") {
     doc->move_to_start_of_line();
     doc->move_to_end_of_line(true);
+  }
+  if (cmd.command == "toggle_wrap") {
+    wrap = !wrap;
+    doc->make_dirty();
+    return true;
   }
   if (cmd.command == "expand_to_block") {
     // move to doc
@@ -147,6 +159,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->move_right(cmd.params == "anchored");
   }
 
+  int hh = computed.h;
   if (cmd.command == "pageup") {
     for (int i = 0; i < hh; i++)
       doc->move_up();
@@ -177,8 +190,6 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   if (cmd.command == "move_to_next_word") {
     doc->move_to_next_word();
   }
-
-  Cursor cursor = doc->cursor();
 
   if (key_sequence == "enter") {
     key_sequence = "";
@@ -218,58 +229,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     request_treesitter = true;
   }
 
-  int offset_y = 0;
-  if (wrap) {
-    int s = cursor.start.row - computed.h;
-    if (s < 0)
-      s = 0;
-    for (int i = s; i < cursor.start.row; i++) {
-      BlockPtr block = doc->block_at(i);
-      if (!block)
-        break;
-      offset_y += (block->line_height - 1);
-    }
-  }
-  int offset_folds = 0;
-  for (auto f : doc->folds) {
-    if (cursor.start.row > f.start.row) {
-      offset_folds += (f.end.row - f.start.row);
-    }
-  }
-
-  int size = doc->size();
-  int lead = 0;
-  if (cursor.start.row >=
-      scroll.y + (hh - 1) - lead - offset_y + offset_folds) {
-    scroll.y = -(hh - 1) + cursor.start.row + lead + offset_y - offset_folds;
-  }
-  if (scroll.y + lead + offset_folds > cursor.start.row) {
-    scroll.y = -lead + cursor.start.row - offset_folds;
-  }
-  if (scroll.y + hh / 2 > size) {
-    scroll.y = size - hh / 2;
-  }
-  if (scroll.y < 0) {
-    scroll.y = 0;
-  }
-  int ww = computed.w;
-  if (cursor.start.column >= scroll.x + (ww - 1) - lead) {
-    scroll.x = -(ww - 1) + cursor.start.column + lead;
-  }
-  if (scroll.x + lead > cursor.start.column) {
-    scroll.x = -lead + cursor.start.column;
-  }
-  if (scroll.x + ww / 2 > size) {
-    scroll.x = size - ww / 2;
-  }
-  if (scroll.x < 0) {
-    scroll.x = 0;
-  }
-  // wrapped
-  if (wrap) {
-    scroll.x = 0;
-  }
-
+  update_scroll();
   return false;
 }
 
@@ -303,6 +263,79 @@ bool editor_t::on_idle(int frame) {
 }
 
 void editor_t::on_draw() {}
+
+void editor_t::update_scroll() {
+  int hh = computed.h;
+
+  Cursor cursor = doc->cursor();
+
+  // compute wrap
+  int offset_y = 0;
+  if (wrap) {
+    int s = cursor.start.row - computed.h;
+    if (s < 0)
+      s = 0;
+    for (int i = s; i < cursor.start.row; i++) {
+      BlockPtr block = doc->block_at(i);
+      for (auto f : doc->folds) {
+        if (is_point_within_range({i, 0}, f)) {
+          block = nullptr;
+          break;
+        }
+      }
+      if (!block) {
+        continue;
+      }
+      offset_y += (block->line_height - 1);
+    }
+  }
+
+  // compute fold
+  int offset_folds = 0;
+  int prev_end = 0;
+  for (auto f : doc->folds) {
+    if (f.start.row < prev_end)
+      continue;
+    if (cursor.start.row > f.start.row) {
+      offset_folds += (f.end.row - f.start.row);
+    }
+    prev_end = f.end.row;
+  }
+
+  // compute the scroll
+  int size = doc->size();
+  int lead = 0;
+  if (cursor.start.row >=
+      scroll.y + (hh - 1) - lead - offset_y + offset_folds) {
+    scroll.y = -(hh - 1) + cursor.start.row + lead + offset_y - offset_folds;
+  }
+  if (scroll.y + lead + offset_folds > cursor.start.row) {
+    scroll.y = -lead + cursor.start.row - offset_folds;
+  }
+  if (scroll.y + hh / 2 > size) {
+    scroll.y = size - hh / 2;
+  }
+  if (scroll.y < 0) {
+    scroll.y = 0;
+  }
+  int ww = computed.w;
+  if (cursor.start.column >= scroll.x + (ww - 1) - lead) {
+    scroll.x = -(ww - 1) + cursor.start.column + lead;
+  }
+  if (scroll.x + lead > cursor.start.column) {
+    scroll.x = -lead + cursor.start.column;
+  }
+  if (scroll.x + ww / 2 > size) {
+    scroll.x = size - ww / 2;
+  }
+  if (scroll.x < 0) {
+    scroll.x = 0;
+  }
+  // wrapped
+  if (wrap) {
+    scroll.x = 0;
+  }
+}
 
 textfield_t::textfield_t() : editor_t() {
   std::u16string empty = u"";

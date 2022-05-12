@@ -258,8 +258,11 @@ static int readEscapeSequence(std::string &keySequence) {
     case 'F':
       keySequence = "end";
       return K_END_KEY;
+    case '2':
+      keySequence = "insert";
+      return K_INSERT;
     }
-    // printf("escape+%c+%c\n", seq[0], seq[1]);
+    printf("escape+%c+%c\n", seq[0], seq[1]);
   }
 
   /* ESC O sequences. */

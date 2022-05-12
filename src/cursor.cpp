@@ -84,7 +84,7 @@ void Cursor::move_left(bool anchor) {
   }
   if (start.column == 0) {
     if (start.row > 0) {
-      start.row--;
+      move_up(anchor);
       start.column = *(*buffer).line_length_for_row(start.row);
     }
   } else {
@@ -107,7 +107,7 @@ void Cursor::move_right(bool anchor) {
   int l = *(*buffer).line_length_for_row(start.row);
   if (start.column > l) {
     if (start.row + 1 < document->size()) {
-      start.row++;
+      move_down(anchor);
       start.column = 0;
     } else {
       start.column = l;
@@ -283,6 +283,9 @@ bool Cursor::is_edge(int row, int column) {
 }
 
 void Cursor::insert_text(std::u16string text) {
+  if (!document->insert_mode && !has_selection()) {
+    move_right(true);
+  }
   Range range = normalized();
   int r = 0;
   int start_size = document->size();

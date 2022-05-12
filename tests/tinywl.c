@@ -8,7 +8,6 @@ enum tinywl_cursor_mode {
     TINYWL_CURSOR_RESIZE,
 };
 
-
 /* For brevity's sake, struct members are annotated where they are used. */
 enum tinywl_cursor_mode {
     TINYWL_CURSOR_PASSTHROUGH,
@@ -16,8 +15,7 @@ enum tinywl_cursor_mode {
     TINYWL_CURSOR_RESIZE,
 };
 
-#include <stdbool.h>
-#include <stdio.h>
+#include <stdbool.h> #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>

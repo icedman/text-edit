@@ -47,7 +47,8 @@ enum KEY_ACTION {
   K_HOME_KEY,
   K_END_KEY,
   K_PAGE_UP,
-  K_PAGE_DOWN
+  K_PAGE_DOWN,
+  K_INSERT
 };
 
 int kbhit(int timeout = 500);

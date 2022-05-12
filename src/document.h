@@ -28,10 +28,7 @@ public:
   bool comment_block;
   bool prev_comment_block;
 
-  void make_dirty() {
-    dirty = true;
-    words.clear();
-  }
+  void make_dirty();
 };
 
 typedef std::shared_ptr<Block> BlockPtr;
@@ -45,34 +42,39 @@ public:
 
   TextBuffer buffer;
   TextBuffer::Snapshot *snapshot;
-  MarkerIndex cursor_markers;
-  MarkerIndex fold_markers;
-  std::vector<Cursor> cursors;
   std::vector<BlockPtr> blocks;
+
+  std::vector<Cursor> cursors;
+  MarkerIndex cursor_markers;
   std::vector<Cursor> folds;
-
-  std::u16string tab_string;
-
-  class Redo {
-  public:
-    std::u16string text;
-    Range range;
-  };
+  MarkerIndex fold_markers;
 
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;
   std::u16string search_key;
   std::map<std::u16string, SearchPtr> searches;
   std::vector<TreeSitterPtr> treesitters;
+
+  class Redo {
+  public:
+    std::u16string text;
+    Range range;
+  };
   std::vector<Redo> redo_patches;
 
   language_info_ptr language;
+  std::u16string comment_string;
+  std::u16string tab_string;
+
+  bool insert_mode;
 
   static std::u16string &empty();
 
   void initialize(std::u16string &str);
   bool load(std::string path);
   bool save(std::string path);
+
+  void set_language(language_info_ptr lang);
 
   Cursor &cursor();
 
@@ -122,7 +124,6 @@ public:
   void paste();
   void undo();
   void redo();
-
   void snap();
 
   int size();
@@ -133,7 +134,7 @@ public:
   BlockPtr previous_block(BlockPtr block);
   BlockPtr next_block(BlockPtr block);
   void update_blocks(int line, int count);
-  void make_dirty();
+  void make_dirty(int line = 0);
 
   void indent();
   void unindent();
