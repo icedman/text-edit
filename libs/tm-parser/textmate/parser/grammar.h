@@ -49,12 +49,15 @@ private:
         rule_ptr base;
         rule_ptr self;
         rule_stack_t stack;
+        std::string path;
     };
 
     void setup_includes(rule_ptr const& rule, rule_ptr const& base,
         rule_ptr const& self, rule_stack_t const& stack);
     rule_ptr find_grammar(std::string const& scope, rule_ptr const& base);
     rule_ptr add_grammar(std::string const& scope, Json::Value const& json,
+        rule_ptr const& base = rule_ptr(), bool spawn_thread = false);
+    rule_ptr add_grammar(std::string const& scope, std::string const& path,
         rule_ptr const& base = rule_ptr(), bool spawn_thread = false);
 
     std::vector<std::pair<scope::selector_t, rule_ptr>> injection_grammars();

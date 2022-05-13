@@ -220,7 +220,7 @@ rule_ptr grammar_t::find_grammar(std::string const& scope,
         }
 
         if (found) {
-            return add_grammar(scope, load_plist_or_json(path), base, true);
+            return add_grammar(scope, path, base, true);
         }
     }
 
@@ -230,6 +230,10 @@ rule_ptr grammar_t::find_grammar(std::string const& scope,
 void* grammar_t::setup_includes_thread(void* arg)
 {
     grammar_t::setup_includes_payload_t* p = (grammar_t::setup_includes_payload_t*)arg;
+    if (p->path != "") {
+        Json::Value json = load_plist_or_json(p->path);
+        convert_json(json, p->self);
+    }
     compile_patterns(p->self.get());
     p->_this->setup_includes(p->rule, p->base, p->self, p->stack);
     delete p;
@@ -256,6 +260,40 @@ rule_ptr grammar_t::add_grammar(std::string const& scope,
                 &setup_includes_thread, (void*)(p));
 
         } else {
+            compile_patterns(grammar.get());
+            setup_includes(grammar, base ? base : grammar, grammar,
+                rule_stack_t(grammar.get()));
+        }
+    }
+
+    return grammar;
+}
+
+rule_ptr grammar_t::add_grammar(std::string const& scope, std::string const& path,
+    rule_ptr const& base, bool spawn_thread)
+{
+    rule_ptr grammar = std::make_shared<rule_t>(); // convert_json(json);
+    if (grammar) {
+        _grammars.emplace(scope, grammar);
+
+        if (spawn_thread) {
+            setup_includes_payload_t* p = new setup_includes_payload_t();
+            p->_this = this;
+            p->rule = grammar;
+            p->base = base ? base : grammar;
+            p->self = grammar;
+            p->stack = rule_stack_t(grammar.get());
+            p->path = path;
+            running_threads++;
+            pthread_t thread_id;
+            pthread_create(&thread_id, NULL,
+                &setup_includes_thread, (void*)(p));
+
+        } else {
+            if (path != "") {
+                Json::Value json = load_plist_or_json(path);
+                convert_json(json, grammar);
+            }
             compile_patterns(grammar.get());
             setup_includes(grammar, base ? base : grammar, grammar,
                 rule_stack_t(grammar.get()));

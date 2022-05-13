@@ -18,3 +18,7 @@
 ## todo
 * parsed tree
 * multi-buffers/doc/tabs
+
+```js
+var xxx = 1;
+```
