@@ -6,6 +6,8 @@
 
 bool is_point_within_range(Point p, Range r);
 bool compare_range(Range a, Range b);
+int count_indent_size(std::string text);
+int count_indent_size(std::u16string text);
 
 class Document;
 class Cursor : public Range {
@@ -14,10 +16,11 @@ public:
   Document *document;
   int id;
 
-  void move_up(bool anchor = false);
-  void move_down(bool anchor = false);
-  void move_left(bool anchor = false);
-  void move_right(bool anchor = false);
+  bool move_up(bool anchor = false);
+  bool move_down(bool anchor = false);
+  bool move_left(bool anchor = false);
+  bool move_right(bool anchor = false);
+
   void move_to_start_of_document(bool anchor = false);
   void move_to_end_of_document(bool anchor = false);
   void move_to_start_of_line(bool anchor = false);

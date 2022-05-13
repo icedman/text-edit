@@ -14,8 +14,11 @@
 #include "textmate.h"
 #include "treesitter.h"
 
-int count_indent_size(std::string text);
-int count_indent_size(std::u16string text);
+class Bracket {
+public:
+  Range range;
+  int flags;
+};
 
 class Block {
 public:
@@ -26,10 +29,13 @@ public:
   parse::stack_ptr parser_state;
   std::vector<textstyle_t> styles;
   std::vector<Range> words;
+  std::vector<Bracket> brackets;
 
   bool comment_line;
   bool comment_block;
   bool prev_comment_block;
+  bool string_block;
+  bool prev_string_block;
 
   void make_dirty();
 };
@@ -68,6 +74,7 @@ public:
   language_info_ptr language;
   std::u16string comment_string;
   std::u16string tab_string;
+  std::vector<std::string> autoclose_pairs;
 
   bool insert_mode;
 
@@ -159,12 +166,14 @@ public:
   void run_treesitter();
   TreeSitterPtr treesitter();
 
+  optional<Bracket> bracket_cursor(Cursor cursor);
   optional<Cursor> block_cursor(Cursor cursor);
   optional<Cursor> span_cursor(Cursor cursor);
 
   // events
   void on_input(char last_character);
   void auto_indent();
+  void auto_close(int idx);
 };
 
 typedef std::shared_ptr<Document> DocumentPtr;

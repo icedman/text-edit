@@ -255,12 +255,15 @@ void draw_gutter(EditorPtr editor, view_ptr view) {
 }
 
 void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
-                    std::vector<textstyle_t> &styles, int *height = 0) {
+                    BlockPtr block, int *height = 0) {
+  std::vector<textstyle_t> &styles = block->styles;
+
   int scroll_x = editor->scroll.x;
   int scroll_y = editor->scroll.y;
 
   DocumentPtr doc = editor->doc;
   optional<Cursor> block_cursor = doc->block_cursor(doc->cursor());
+  optional<Bracket> bracket_cursor = doc->bracket_cursor(doc->cursor());
   SearchPtr search = doc->search();
 
   screen_row += editor->computed.y;
@@ -268,10 +271,9 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
   move(screen_row, screen_col);
   clrtoeol();
 
-  BlockPtr block = doc->block_at(row);
   int l = strlen(text);
-  int iz = count_indent_size(text);
-  int tz = editor->draw_tab_stops ? doc->tab_string.size() : 0;
+  int indent_size = count_indent_size(text);
+  int tab_size = editor->draw_tab_stops ? doc->tab_string.size() : 0;
 
   doc->cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc->cursors;
@@ -307,7 +309,7 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
 
     block->line_height = *height;
 
-    // build...
+    // cursor selections
     for (auto cursor : cursors) {
       if (cursor.is_within(row, i)) {
         selected = cursors.size() > 1 || cursor.has_selection();
@@ -332,8 +334,12 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
     }
 
     char ch = text[i];
+    bool underline = false;
+
+    // syntax highlights
     for (auto s : styles) {
       if (s.start >= i && i < s.start + s.length) {
+        underline = s.underline;
         int colorIdx = color_index(s.r, s.g, s.b);
         pair = pair_for_color(colorIdx, selected, is_cursor_row);
         pair = pair > 0 ? pair : default_pair;
@@ -341,32 +347,45 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
       }
     }
 
+    // decorate block edges
     if (block_cursor) {
       if ((*block_cursor).is_edge(row, i)) {
         pair = edge;
       }
     }
 
-    const wchar_t *_tab = L"\u2847";
-    // const wchar_t* _tab = L"\u2810";
-    // const wchar_t* _tab = L"\u2828";
-    wchar_t *tab = NULL;
-    if (tz > 0 && i < iz && i % tz == 0) {
-      pair = pair_for_color(cmt, selected, is_cursor_row);
-      tab = (wchar_t *)_tab;
-    }
-
+    // decorate search result
     if (search) {
       for (auto m : search->matches) {
         m.end.column--;
         if (is_point_within_range({row, i}, m)) {
-          attron(A_UNDERLINE);
-          // attron(A_REVERSE);
+          underline = true;
           break;
         }
       }
     }
 
+    // decorate brackets
+    if (bracket_cursor) {
+      Range r = (*bracket_cursor).range;
+      if (r.start.column == i && r.start.row == row) {
+        underline = true;
+      }
+    }
+
+    if (underline) {
+      attron(A_UNDERLINE);
+    }
+
+    // render tab stop
+    wchar_t *tab = NULL;
+    if (tab_size > 0 && (i % tab_size == 0) && i < indent_size) {
+      pair = pair_for_color(cmt, selected, is_cursor_row);
+      const wchar_t *_tab = L"\u2847";
+      tab = (wchar_t *)_tab;
+    }
+
+    // render the character
     attron(COLOR_PAIR(pair));
     if (tab != NULL) {
       addwstr(tab);
@@ -374,6 +393,7 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
       addch(ch);
     }
     attroff(COLOR_PAIR(pair));
+
     // attroff(A_BLINK);
     // attroff(A_STANDOUT);
     attroff(A_REVERSE);
@@ -407,6 +427,10 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
   }
 }
 
+bool compare_brackets(Bracket a, Bracket b) {
+  return compare_range(a.range, b.range);
+}
+
 void draw_text_buffer(EditorPtr editor) {
   if (!editor->show)
     return;
@@ -428,13 +452,9 @@ void draw_text_buffer(EditorPtr editor) {
   if (start < 0)
     start = 0;
 
-  int loops = 0;
-  int hl = 0;
   for (int i = 0; i < vh * 2; i++) {
     if (idx + offset_y > editor->computed.h)
       break;
-
-    loops++;
 
     int line = start + i;
     int computed_line = doc->computed_line(line);
@@ -446,6 +466,8 @@ void draw_text_buffer(EditorPtr editor) {
     }
 
     optional<std::u16string> row = text.line_for_row(computed_line);
+
+    // expensive?
     std::stringstream s;
     if (row) {
       s << u16string_to_string(*row);
@@ -460,24 +482,31 @@ void draw_text_buffer(EditorPtr editor) {
               block.get(), doc->previous_block(block).get(),
               doc->next_block(block).get());
 
-          hl = idx;
+          // find brackets
+          block->brackets.clear();
+          for (auto s : block->styles) {
+            if (s.flags & SCOPE_BRACKET) {
+              block->brackets.push_back(
+                  Bracket{{{computed_line, s.start},
+                           {computed_line, s.start + s.length}},
+                          s.flags});
+            }
+          }
+
+          // std::sort(block->brackets.begin(), block->brackets.end(),
+          // compare_brackets);
         }
         block->dirty = false;
       }
 
       int line_height = 1;
       draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
-                     block->styles, &line_height);
+                     block, &line_height);
       if (line_height > 1) {
         offset_y += (line_height - 1);
       }
     }
   }
-
-  // move(0, 10);
-  // char tmp[128];
-  // sprintf(tmp, ">%d %d\n", hl, loops);
-  // addstr(tmp);
 }
 
 void draw_search(EditorPtr editor, SearchPtr search) {
@@ -659,6 +688,8 @@ int main(int argc, char **argv) {
 
   EditorPtr editor;
   editor = std::make_shared<editor_t>();
+  editor->draw_tab_stops = true;
+  editor->request_treesitter = true;
   DocumentPtr doc = editor->doc;
 
   view_ptr root = std::make_shared<column_t>();
@@ -705,12 +736,11 @@ int main(int argc, char **argv) {
   Textmate::initialize("/home/iceman/.editor/extensions/");
   int theme_id = Textmate::load_theme(argTheme);
   int lang_id = Textmate::load_language(file_path);
-  doc->set_language(Textmate::language_info(lang_id));
-  editor->draw_tab_stops = true;
 
   theme_info_t info = Textmate::theme_info();
 
   doc->load(file_path);
+  doc->set_language(Textmate::language_info(lang_id));
 
   setlocale(LC_ALL, "");
 
@@ -748,6 +778,7 @@ int main(int argc, char **argv) {
 
     editor->focused = focused == editor;
     input->focused = focused == input;
+
     if (input->focused != input->show) {
       input->show = input->focused;
       last_layout_size = -1;
@@ -786,6 +817,8 @@ int main(int argc, char **argv) {
     ss << ",";
     ss << (cursor.start.column + 1);
     ss << "  ";
+    // ss << doc->buffer.extent().column;
+
     if (size > 0) {
       int p = (100 * cursor.start.row) / size;
       if (p == 0) {
@@ -960,7 +993,6 @@ int main(int argc, char **argv) {
     // todo move to view
     if (cmd.command == "search_text") {
       focused = input;
-      input->doc->initialize(Document::empty());
       input->cursor = {0, 0};
       input->on_submit = [&editor, &message](std::u16string value) {
         editor->doc->run_search(value, editor->doc->cursor().start);
@@ -970,7 +1002,6 @@ int main(int argc, char **argv) {
     }
     if (cmd.command == "jump_to_line") {
       focused = input;
-      input->doc->initialize(Document::empty());
       input->cursor = {0, 0};
       input->on_submit = [&focused, &editor, &message](std::u16string value) {
         focused = editor;

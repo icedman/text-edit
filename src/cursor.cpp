@@ -10,7 +10,31 @@ bool compare_range(Range a, Range b) {
   return a.start.column < b.start.column;
 }
 
-void Cursor::move_up(bool anchor) {
+int count_indent_size(std::string text) {
+  int sz = 0;
+  for (int i = 0; i < text.length(); i++) {
+    if (text[i] == ' ') {
+      sz++;
+    } else {
+      break;
+    }
+  }
+  return sz;
+}
+
+int count_indent_size(std::u16string text) {
+  int sz = 0;
+  for (int i = 0; i < text.length(); i++) {
+    if (text[i] == u' ') {
+      sz++;
+    } else {
+      break;
+    }
+  }
+  return sz;
+}
+
+bool Cursor::move_up(bool anchor) {
   int prev_row = start.row;
   if (start.row > 0) {
     start.row--;
@@ -29,8 +53,10 @@ void Cursor::move_up(bool anchor) {
       }
     }
   } while (is_folded);
+
   if (start.row < 0) {
     start.row = prev_row;
+    return false;
   }
 
   int l = *(*buffer).line_length_for_row(start.row);
@@ -41,9 +67,10 @@ void Cursor::move_up(bool anchor) {
   if (!anchor) {
     end = start;
   }
+  return true;
 }
 
-void Cursor::move_down(bool anchor) {
+bool Cursor::move_down(bool anchor) {
   int prev_row = start.row;
   start.row++;
 
@@ -62,25 +89,26 @@ void Cursor::move_down(bool anchor) {
   } while (is_folded);
 
   int size = document->size();
-  if (start.row > size) {
+  if (start.row + 1 > size) {
     start.row = prev_row;
+    return false;
   }
 
   int l = *(*buffer).line_length_for_row(start.row);
-  ;
   if (start.column > l) {
     start.column = l;
   }
   if (!anchor) {
     end = start;
   }
+  return true;
 }
 
-void Cursor::move_left(bool anchor) {
+bool Cursor::move_left(bool anchor) {
   if (!anchor && has_selection()) {
     start = normalized().start;
     end = start;
-    return;
+    return true;
   }
   if (start.column == 0) {
     if (start.row > 0) {
@@ -94,14 +122,15 @@ void Cursor::move_left(bool anchor) {
   if (!anchor) {
     end = start;
   }
+  return true;
 }
 
-void Cursor::move_right(bool anchor) {
+bool Cursor::move_right(bool anchor) {
   if (!anchor && has_selection()) {
     Cursor cur = normalized();
     end = normalized().end;
     start = end;
-    return;
+    return true;
   }
   start.column++;
   int l = *(*buffer).line_length_for_row(start.row);
@@ -116,7 +145,9 @@ void Cursor::move_right(bool anchor) {
   if (!anchor) {
     end = start;
   }
+  return true;
 }
+
 void Cursor::move_to_start_of_document(bool anchor) {
   start.column = 0;
   start.row = 0;
@@ -127,6 +158,9 @@ void Cursor::move_to_start_of_document(bool anchor) {
 
 void Cursor::move_to_end_of_document(bool anchor) {
   start = buffer->extent();
+  if (start.row > 0) {
+    start.row--;
+  }
   if (!anchor) {
     end = start;
   }

@@ -11,6 +11,7 @@ editor_t::editor_t()
     : view_t(), request_treesitter(false), request_autocomplete(false),
       wrap(true), draw_tab_stops(false) {
   doc = std::make_shared<Document>();
+  doc->initialize(Document::empty());
 }
 
 bool editor_t::on_input(int ch, std::string key_sequence) {
@@ -335,8 +336,8 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
   }
   last_key_sequence = "";
 
-  std::vector<std::string> drop_commands = {"save", "indent", "unindent",
-                                            "toggle_block_fold", "tab"};
+  std::vector<std::string> drop_commands = {
+      "save", "indent", "unindent", "toggle_block_fold", "toggle_wrap", "tab"};
 
   for (auto d : drop_commands) {
     if (cmd.command == d) {

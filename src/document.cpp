@@ -13,37 +13,15 @@
 
 static std::u16string clipboard_data;
 
-int count_indent_size(std::string text) {
-  int sz = 0;
-  for (int i = 0; i < text.length(); i++) {
-    if (text[i] == ' ') {
-      sz++;
-    } else {
-      break;
-    }
-  }
-  return sz;
-}
-
-int count_indent_size(std::u16string text) {
-  int sz = 0;
-  for (int i = 0; i < text.length(); i++) {
-    if (text[i] == u' ') {
-      sz++;
-    } else {
-      break;
-    }
-  }
-  return sz;
-}
-
 Block::Block()
     : line(0), line_height(1), comment_line(false), comment_block(false),
-      prev_comment_block(false), dirty(true) {}
+      prev_comment_block(false), string_block(false), prev_string_block(false),
+      dirty(true) {}
 
 void Block::make_dirty() {
   dirty = true;
   words.clear();
+  brackets.clear();
   line_height = 1;
 }
 
@@ -74,14 +52,21 @@ std::u16string &Document::empty() {
 
 void Document::initialize(std::u16string &str) {
   buffer.set_text(str);
+
+  // todo ... cleanup conversions
+  if (buffer.extent().row == 0) {
+    str += u"\n";
+    buffer.set_text(str);
+  }
+
   buffer.flush_changes();
   blocks.clear();
   snap();
 
   blocks.clear();
   int l = size();
-  for (int i = 0; i < l + 1; i++) {
-    add_block_at(i + 1);
+  for (int i = 0; i < l; i++) {
+    add_block_at(i);
 
     // detect tab size
     if (tab_string.size() == 0) {
@@ -95,27 +80,14 @@ void Document::initialize(std::u16string &str) {
   if (tab_string.size() == 0) {
     tab_string = u"  ";
   }
-
-  run_treesitter();
 }
 
 void Document::set_language(language_info_ptr lang) {
   language = lang;
   comment_string = u"";
 
-  // comments
-  // if (j['comments'] != null) {
-  //   final comments = j['comments'] ?? {};
-  //   if (comments['lineComment'] != null) {
-  //     l.lineComment = comments['lineComment'];
-  //   }
-  //   if (comments['blockComment'] != null) {
-  //     l.blockComment = [];
-  //     for (final c in comments['blockComment']) {
-  //       l.blockComment.add('$c');
-  //     }
-  //   }
-  // }
+  if (!lang)
+    return;
 
   Json::Value comments = lang->definition["comments"];
   if (comments.isObject()) {
@@ -124,6 +96,18 @@ void Document::set_language(language_info_ptr lang) {
       std::string scomment = comment_line.asString();
       scomment += " ";
       comment_string = string_to_u16string(scomment);
+    }
+  }
+
+  autoclose_pairs.clear();
+  Json::Value pairs = lang->definition["autoClosingPairs"];
+  if (pairs.isArray()) {
+    for (Json::Value::ArrayIndex i = 0; i < pairs.size(); i++) {
+      Json::Value pair = pairs[i];
+      if (pair.isMember("open") && pair.isMember("close")) {
+        autoclose_pairs.push_back(pair["open"].asString());
+        autoclose_pairs.push_back(pair["close"].asString());
+      }
     }
   }
 }
@@ -480,7 +464,7 @@ void Document::end_fold_markers() {
     c.start = fold_markers.get_start(c.id);
     c.end = fold_markers.get_end(c.id);
     fold_markers.remove(c.id);
-    if (c.end.row - c.start.row == 0) {
+    if (c.end.row - c.start.row <= 0) {
       disposables.push_back(c);
     }
   }
@@ -520,7 +504,11 @@ void Document::toggle_fold(Cursor curs) {
     if ((*block).start == Point{0, 0}) {
       return;
     }
-    auto it = std::find(folds.begin(), folds.end(), *block);
+    Cursor b = (*block).copy();
+    if (b.start.column == 0) {
+      b.start.column = 1;
+    }
+    auto it = std::find(folds.begin(), folds.end(), b);
     if (it != folds.end()) {
       folds.erase(it);
       return;
@@ -530,6 +518,9 @@ void Document::toggle_fold(Cursor curs) {
     }
     cur.copy_from(*block);
     cur = cur.normalized();
+    if (cur.start.column == 0) {
+      cur.start.column = 1;
+    }
     folds.push_back(cur.copy());
     clear_cursors();
     cursor().copy_from(cur);
@@ -719,7 +710,12 @@ std::vector<Range> Document::words_in_line(int line) {
 std::vector<int> Document::word_indices_in_line(int line, bool start,
                                                 bool end) {
   std::vector<int> indices;
+  optional<unsigned int> length = buffer.line_length_for_row(line);
+  if (length && *length > 500)
+    return indices;
   BlockPtr block = block_at(line);
+  if (!block)
+    return indices;
   if (block->words.size() == 0) {
     block->words = words_in_line(line);
   }
@@ -1024,6 +1020,10 @@ TreeSitterPtr Document::treesitter() {
   return back;
 }
 
+optional<Bracket> Document::bracket_cursor(Cursor cursor) {
+  return optional<Bracket>();
+}
+
 optional<Cursor> Document::block_cursor(Cursor cursor) {
   optional<Cursor> res;
   TreeSitterPtr tree = treesitter();
@@ -1107,5 +1107,40 @@ optional<Cursor> Document::span_cursor(Cursor cursor) {
 void Document::on_input(char last_character) {
   if (last_character == '\n') {
     auto_indent();
+    return;
   }
+
+  for (int i = 0; i < autoclose_pairs.size() - 1; i += 2) {
+    if (autoclose_pairs[i][0] == last_character) {
+      auto_close(i);
+      return;
+    }
+  }
+}
+
+void Document::auto_close(int idx) {
+  std::vector<Cursor> curs_backup = cursors;
+  std::vector<Cursor> curs;
+  for (auto c : cursors) {
+    if (c.has_selection())
+      continue;
+    optional<std::u16string> row = buffer.line_for_row(c.start.row);
+    if (!row) {
+      continue;
+    }
+    if ((*row).size() == c.start.column) {
+      curs.push_back(c);
+      continue;
+    } else {
+      if ((*row)[c.start.column] == u' ') {
+        curs.push_back(c);
+        continue;
+      }
+    }
+  }
+  cursors = curs;
+  if (cursors.size() > 0) {
+    insert_text(string_to_u16string(autoclose_pairs[idx + 1]));
+  }
+  cursors = curs_backup;
 }

@@ -16,23 +16,6 @@
 #define MAX_STYLED_SPANS 512
 #define MAX_BUFFER_LENGTH (1024 * 4)
 
-#define SCOPE_COMMENT (1 << 1)
-#define SCOPE_COMMENT_BLOCK (1 << 2)
-#define SCOPE_STRING (1 << 3)
-#define SCOPE_BRACKET (1 << 4)
-#define SCOPE_BRACKET_CURLY (1 << 4)
-#define SCOPE_BRACKET_ROUND (1 << 5)
-#define SCOPE_BRACKET_SQUARE (1 << 6)
-#define SCOPE_BEGIN (1 << 7)
-#define SCOPE_END (1 << 8)
-#define SCOPE_TAG (1 << 9)
-#define SCOPE_VARIABLE (1 << 10)
-#define SCOPE_CONSTANT (1 << 11)
-#define SCOPE_KEYWORD (1 << 12)
-#define SCOPE_ENTITY (1 << 13)
-#define SCOPE_ENTITY_CLASS (1 << 14)
-#define SCOPE_ENTITY_FUNCTION (1 << 15)
-
 inline bool color_is_set(rgba_t clr) {
   return clr.r >= 0 && (clr.r != 0 || clr.g != 0 || clr.b != 0 || clr.a != 0);
 }
@@ -69,9 +52,6 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
       if (span.scope.find("comment.block") == 0) {
         res.flags = res.flags | SCOPE_COMMENT_BLOCK;
       }
-      if (span.scope.find("comment.line") == 0) {
-        res.flags = res.flags | SCOPE_COMMENT;
-      }
       if (span.scope.find("string.quoted") == 0) {
         res.flags = res.flags | SCOPE_STRING;
       }
@@ -81,9 +61,6 @@ inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
 }
 
 inline bool textstyles_equal(textstyle_t &first, textstyle_t &second) {
-  if (first.flags & SCOPE_BEGIN || second.flags & SCOPE_BEGIN ||
-      first.flags & SCOPE_END || second.flags & SCOPE_END)
-    return false;
   return first.italic == second.italic && first.underline == second.underline &&
          first.r == second.r && first.g == second.g && first.b == second.b &&
          first.bg_r == second.bg_r && first.bg_g == second.bg_g &&
@@ -311,6 +288,7 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
   ) {
     parser_state = prev_block->parser_state;
     block->prev_comment_block = prev_block->comment_block;
+    block->prev_string_block = prev_block->string_block;
   }
 
   bool firstLine = false;
@@ -392,47 +370,6 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
     textstyle_buffer.push_back(construct_style(spans, i));
     textstyle_t *ts = &textstyle_buffer[idx];
 
-    // brackets hack - use language info
-    if (ts->flags & SCOPE_BRACKET &&
-        (lang->hasCurly || lang->hasRound || lang->hasSquare)) {
-      ts->flags &= ~SCOPE_BRACKET;
-    }
-    if (!(ts->flags & SCOPE_COMMENT || ts->flags & SCOPE_COMMENT_BLOCK ||
-          ts->flags & SCOPE_STRING)) { //&&
-      // (!(ts->flags & SCOPE_BRACKET_CURLY) &&
-      //   !(ts->flags & SCOPE_BRACKET_ROUND) &&
-      //   !(ts->flags & SCOPE_BRACKET_SQUARE))) {
-
-      char ch = _text[ts->start];
-
-      // #define _P() printf(">%c %d %d %d\n", ch, lang->hasCurly,
-      // lang->hasRound, lang->hasSquare);
-#if 0
-      if (lang->hasCurly && ch == '{') {
-        ts->flags =
-            ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_CURLY | SCOPE_BEGIN;
-      }
-      if (lang->hasRound && ch == '(') {
-        ts->flags =
-            ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_ROUND | SCOPE_BEGIN;
-      }
-      if (lang->hasSquare && ch == '[') {
-        ts->flags =
-            ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_SQUARE | SCOPE_BEGIN;
-      }
-      if (lang->hasCurly && ch == '}') {
-        ts->flags = ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_CURLY | SCOPE_END;
-      }
-      if (lang->hasRound && ch == ')') {
-        ts->flags = ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_ROUND | SCOPE_END;
-      }
-      if (lang->hasSquare && ch == ']') {
-        ts->flags =
-            ts->flags | SCOPE_BRACKET | SCOPE_BRACKET_SQUARE | SCOPE_END;
-      }
-#endif
-    }
-
     if (!color_is_set({ts->r, ts->g, ts->b, 0})) {
       if (ts->r + ts->g + ts->b == 0) {
         ts->r = themeInfo.fg_r;
@@ -454,12 +391,15 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
   if (idx > 0) {
     block->comment_block =
         (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT_BLOCK);
-    block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT) &&
-                          !block->comment_block;
+    // block->comment_line = (textstyle_buffer[idx - 1].flags & SCOPE_COMMENT)
+    // &&
+    //                       !block->comment_block;
+    block->string_block = (textstyle_buffer[idx - 1].flags & SCOPE_STRING);
   }
 
   if (next_block) {
-    if (next_block->prev_comment_block != block->comment_block) {
+    if (next_block->prev_string_block != block->string_block ||
+        next_block->prev_comment_block != block->comment_block) {
       next_block->make_dirty();
     }
   }

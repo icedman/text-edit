@@ -5,6 +5,23 @@
 #include <string>
 #include <vector>
 
+#define SCOPE_COMMENT (1 << 1)
+#define SCOPE_COMMENT_BLOCK (1 << 2)
+#define SCOPE_STRING (1 << 3)
+#define SCOPE_BRACKET (1 << 4)
+#define SCOPE_BRACKET_CURLY (1 << 4)
+#define SCOPE_BRACKET_ROUND (1 << 5)
+#define SCOPE_BRACKET_SQUARE (1 << 6)
+#define SCOPE_BEGIN (1 << 7)
+#define SCOPE_END (1 << 8)
+#define SCOPE_TAG (1 << 9)
+#define SCOPE_VARIABLE (1 << 10)
+#define SCOPE_CONSTANT (1 << 11)
+#define SCOPE_KEYWORD (1 << 12)
+#define SCOPE_ENTITY (1 << 13)
+#define SCOPE_ENTITY_CLASS (1 << 14)
+#define SCOPE_ENTITY_FUNCTION (1 << 15)
+
 class Block;
 
 struct rgba_t {
