@@ -20,22 +20,26 @@ public:
   int flags;
 };
 
-class Block {
+// textmate::block_data_t { ---
+// parse::stack_ptr parser_state;
+// bool comment_block;
+// bool prev_comment_block;
+// bool string_block;
+// bool prev_string_block;
+// } --- 
+
+class Block : public block_data_t {
 public:
   Block();
+
   int line;
   int line_height;
+  int line_length;
   bool dirty;
-  parse::stack_ptr parser_state;
+
   std::vector<textstyle_t> styles;
   std::vector<Range> words;
   std::vector<Bracket> brackets;
-
-  bool comment_line;
-  bool comment_block;
-  bool prev_comment_block;
-  bool string_block;
-  bool prev_string_block;
 
   void make_dirty();
 };
@@ -58,6 +62,7 @@ public:
   std::vector<Cursor> folds;
   MarkerIndex fold_markers;
 
+  // background services
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;
   std::u16string search_key;
@@ -75,7 +80,6 @@ public:
   std::u16string comment_string;
   std::u16string tab_string;
   std::vector<std::string> autoclose_pairs;
-
   bool insert_mode;
 
   static std::u16string &empty();

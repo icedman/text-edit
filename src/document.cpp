@@ -9,20 +9,19 @@
 #include <sstream>
 
 #define TS_DOC_SIZE_LIMIT 10000
+#define TS_WORD_INDICES_LINE_LIMIT 500
 #define TS_FIND_FROM_CURSOR_LIMIT 1000
 
 static std::u16string clipboard_data;
 
-Block::Block()
-    : line(0), line_height(1), comment_line(false), comment_block(false),
-      prev_comment_block(false), string_block(false), prev_string_block(false),
-      dirty(true) {}
+Block::Block() : block_data_t(), line(0), line_height(1), line_length(0), dirty(true) {}
 
 void Block::make_dirty() {
   dirty = true;
   words.clear();
   brackets.clear();
   line_height = 1;
+  line_length = 0;
 }
 
 Document::Document() : snapshot(0), insert_mode(true) {}
@@ -711,7 +710,7 @@ std::vector<int> Document::word_indices_in_line(int line, bool start,
                                                 bool end) {
   std::vector<int> indices;
   optional<unsigned int> length = buffer.line_length_for_row(line);
-  if (length && *length > 500)
+  if (length && *length > TS_WORD_INDICES_LINE_LIMIT)
     return indices;
   BlockPtr block = block_at(line);
   if (!block)
@@ -1110,10 +1109,12 @@ void Document::on_input(char last_character) {
     return;
   }
 
-  for (int i = 0; i < autoclose_pairs.size() - 1; i += 2) {
-    if (autoclose_pairs[i][0] == last_character) {
-      auto_close(i);
-      return;
+  if (autoclose_pairs.size() > 1) {
+    for (int i = 0; i < autoclose_pairs.size() - 1; i += 2) {
+      if (autoclose_pairs[i][0] == last_character) {
+        auto_close(i);
+        return;
+      }
     }
   }
 }

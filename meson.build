@@ -113,6 +113,7 @@ tinyxml2_includes = [
 ]
 
 tm_parser_files = [
+    'libs/tm-parser/textmate/textmate.cpp',
     'libs/tm-parser/textmate/parser/grammar.cpp',
     'libs/tm-parser/textmate/parser/parser.cpp',
     'libs/tm-parser/textmate/parser/pattern.cpp',
@@ -128,6 +129,7 @@ tm_parser_files = [
 ]
 
 tm_parser_includes = [
+    'libs/tm-parser/textmate',
     'libs/tm-parser/textmate/parser',
     'libs/tm-parser/textmate/scopes',
     'libs/tm-parser/textmate/theme',
@@ -191,7 +193,6 @@ executable('text-edit',
     'src/input.cpp',
     'src/keybindings.cpp',
     'src/utf8.cpp',
-    'src/textmate.cpp',
     'src/treesitter.cpp',
     'src/view.cpp',
     'src/menu.cpp',

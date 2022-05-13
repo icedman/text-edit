@@ -272,6 +272,7 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
   clrtoeol();
 
   int l = strlen(text);
+  block->line_length = l;
   int indent_size = count_indent_size(text);
   int tab_size = editor->draw_tab_stops ? doc->tab_string.size() : 0;
 
@@ -507,6 +508,12 @@ void draw_text_buffer(EditorPtr editor) {
       }
     }
   }
+
+  for (int i = idx; i < editor->computed.h; i++) {
+    move(editor->computed.y + i, editor->computed.x);
+    // addch('~')
+    clrtoeol();
+  }
 }
 
 void draw_search(EditorPtr editor, SearchPtr search) {
@@ -687,6 +694,7 @@ int main(int argc, char **argv) {
   input = std::make_shared<textfield_t>();
 
   EditorPtr editor;
+
   editor = std::make_shared<editor_t>();
   editor->draw_tab_stops = true;
   editor->request_treesitter = true;
@@ -734,12 +742,11 @@ int main(int argc, char **argv) {
   }
 
   Textmate::initialize("/home/iceman/.editor/extensions/");
-  int theme_id = Textmate::load_theme(argTheme);
-  int lang_id = Textmate::load_language(file_path);
-
+  Textmate::load_theme(argTheme);
   theme_info_t info = Textmate::theme_info();
 
   doc->load(file_path);
+  int lang_id = Textmate::load_language(file_path);
   doc->set_language(Textmate::language_info(lang_id));
 
   setlocale(LC_ALL, "");

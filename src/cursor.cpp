@@ -202,6 +202,10 @@ void Cursor::move_to_previous_word(bool anchor) {
 void Cursor::move_to_next_word(bool anchor) {
   std::vector<int> indices =
       document->word_indices_in_line(start.row, true, false);
+  optional<uint32_t> l = (*buffer).line_length_for_row(start.row);
+  if (l) {
+    indices.push_back(*l);
+  }
   int target = 0;
   for (auto i : indices) {
     target = i;
@@ -300,11 +304,6 @@ bool is_point_within_range(Point p, Range r) {
 
 bool Cursor::is_within(int row, int column) {
   Cursor c = normalized();
-  // if (row < c.start.row || (row == c.start.row && column < c.start.column))
-  //   return false;
-  // if (row > c.end.row || (row == c.end.row && column > c.end.column))
-  //   return false;
-  // return true;
   return is_point_within_range({row, column}, c);
 }
 

@@ -10,7 +10,11 @@
 * tree-sitter
 * search
 * auto-complete
+* auto-close
 * multi-cursor
 * undo/redo
 * block collapse/folding
 
+## todo
+* parsed tree
+* multi-buffers/doc/tabs
