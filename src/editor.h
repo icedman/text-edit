@@ -37,4 +37,14 @@ struct textfield_t : editor_t {
 
 typedef std::shared_ptr<textfield_t> TextFieldPtr;
 
+struct editors_t {
+  std::vector<EditorPtr> editors;
+  int selected;
+
+  editors_t();  
+  EditorPtr add_editor(std::string path);
+  EditorPtr current_editor();
+
+};
+
 #endif // TE_EDITOR_H

@@ -41,13 +41,16 @@ std::map<std::string, Command> commands = {
     {"ctrl+a", Command{"select_all", ""}},
     {"ctrl+l", Command{"select_line", ""}},
     {"ctrl+d", Command{"select_word", ""}},
+
     {"alt+d", Command{"duplicate_selection", ""}},
+    {"ctrl+shift+down", Command{"duplicate_line", ""}},
+    
     // {"ctrl+alt+[",   Command{"toggle_fold", ""}},
     // {"ctrl+alt+]",   Command{"unfold_all", ""}},
     {"ctrl+s", Command{"save", ""}},
     {"ctrl+w", Command{"close", ""}},
-    // {"ctrl+1",       Command{"switch_tab", "0"}},
-    // {"ctrl+2",       Command{"switch_tab", "1"}},
+    {"alt+1",       Command{"switch_tab", "0"}},
+    {"alt+2",       Command{"switch_tab", "1"}},
     // {"ctrl+3",       Command{"switch_tab", "2"}},
     // {"ctrl+4",       Command{"switch_tab", "3"}},
     // {"ctrl+5",       Command{"switch_tab", "4"}},

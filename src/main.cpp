@@ -334,6 +334,10 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
       }
     }
 
+    if (selected) {
+      pair = pair_for_color(fg, selected, false);
+    }
+
     char ch = text[i];
     bool underline = false;
 
@@ -690,15 +694,28 @@ void layout(view_ptr root) {
 }
 
 int main(int argc, char **argv) {
+  std::string file_path = "./tests/main.cpp";
+  if (argc > 1) {
+    file_path = argv[argc - 1];
+  }
+
+  const char *defaultTheme = "Monokai";
+  const char *argTheme = defaultTheme;
+  for (int i = 0; i < argc - 1; i++) {
+    if (strcmp(argv[i], "-t") == 0) {
+      argTheme = argv[i + 1];
+    }
+  }
+  Textmate::initialize("/home/iceman/.editor/extensions/");
+  Textmate::load_theme(argTheme);
+  theme_info_t info = Textmate::theme_info();
+
   TextFieldPtr input;
   input = std::make_shared<textfield_t>();
 
-  EditorPtr editor;
-
-  editor = std::make_shared<editor_t>();
-  editor->draw_tab_stops = true;
-  editor->request_treesitter = true;
-  DocumentPtr doc = editor->doc;
+  editors_t editors;
+  EditorPtr editor = editors.add_editor(file_path);
+  editors.add_editor("./src/document.cpp");
 
   view_ptr root = std::make_shared<column_t>();
   view_ptr main = std::make_shared<row_t>();
@@ -714,7 +731,14 @@ int main(int argc, char **argv) {
   root->children.push_back(input);
   view_ptr gutter = std::make_shared<view_t>();
   main->children.push_back(gutter);
-  main->children.push_back(editor);
+
+  view_ptr editor_views = std::make_shared<view_t>();
+  editor_views->flex = 3;
+  for(auto e : editors.editors) {
+    e->flex = 1;
+    editor_views->children.push_back(e);
+  }
+  main->children.push_back(editor_views);
 
   view_ptr sitter = std::make_shared<view_t>();
   main->children.push_back(sitter);
@@ -722,32 +746,9 @@ int main(int argc, char **argv) {
   main->flex = 1;
   status->frame.h = 1;
   gutter->frame.w = 8;
-  editor->flex = 3;
   sitter->flex = 1;
   sitter->show = false;
   input->frame.h = 1;
-
-  const char *defaultTheme = "Monokai";
-  const char *argTheme = defaultTheme;
-
-  for (int i = 0; i < argc - 1; i++) {
-    if (strcmp(argv[i], "-t") == 0) {
-      argTheme = argv[i + 1];
-    }
-  }
-
-  std::string file_path = "./tests/main.cpp";
-  if (argc > 1) {
-    file_path = argv[argc - 1];
-  }
-
-  Textmate::initialize("/home/iceman/.editor/extensions/");
-  Textmate::load_theme(argTheme);
-  theme_info_t info = Textmate::theme_info();
-
-  doc->load(file_path);
-  int lang_id = Textmate::load_language(file_path);
-  doc->set_language(Textmate::language_info(lang_id));
 
   setlocale(LC_ALL, "");
 
@@ -777,15 +778,21 @@ int main(int argc, char **argv) {
   int last_layout_size = -1;
   std::string last_key_sequence;
 
+  EditorPtr prev;
   bool running = true;
   while (running) {
+    if (prev != editors.current_editor()) {
+      editor = editors.current_editor();
+      layout(root);
+    }
+    prev = editor;
     DocumentPtr doc = editor->doc;
     TextBuffer &text = doc->buffer;
     int size = doc->size();
 
+    // todo.. remove focused
     editor->focused = focused == editor;
     input->focused = focused == input;
-
     if (input->focused != input->show) {
       input->show = input->focused;
       last_layout_size = -1;
@@ -803,9 +810,11 @@ int main(int argc, char **argv) {
       last_layout_size = size;
     }
 
-    draw_text_buffer(editor);
+    for(auto e : editors.editors) {
+      draw_text_buffer(e);
+      draw_gutter(e, gutter);
+    }
     draw_text_buffer(input);
-    draw_gutter(editor, gutter);
 
     Cursor cursor = doc->cursor();
 
@@ -997,13 +1006,21 @@ int main(int argc, char **argv) {
       // message << doc->folds.size();
     }
 
+    if (cmd.command == "switch_tab") {
+      editors.selected = !editors.selected;
+      focused = editors.current_editor();
+    }
+
     // todo move to view
     if (cmd.command == "search_text") {
       focused = input;
       input->cursor = {0, 0};
       input->on_submit = [&editor, &message](std::u16string value) {
+        // remove new line
+        if (value.size() > 1) {
+          value = value.substr(0, value.size()-1);
+        }
         editor->doc->run_search(value, editor->doc->cursor().start);
-        message.str(u16string_to_string(value));
         return true;
       };
     }

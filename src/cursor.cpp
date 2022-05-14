@@ -36,9 +36,10 @@ int count_indent_size(std::u16string text) {
 
 bool Cursor::move_up(bool anchor) {
   int prev_row = start.row;
-  if (start.row > 0) {
-    start.row--;
+  if (start.row <= 0) {
+    return false;
   }
+  start.row--;
 
   bool is_folded = false;
   do {
@@ -47,7 +48,9 @@ bool Cursor::move_up(bool anchor) {
       Cursor cur = f.copy();
       cur.end.row++;
       if (is_point_within_range({start.row, 0}, f)) {
-        start.row--;
+        if (start.row > 0) {
+          start.row--;
+        }
         is_folded = true;
         break;
       }
@@ -60,7 +63,6 @@ bool Cursor::move_up(bool anchor) {
   }
 
   int l = *(*buffer).line_length_for_row(start.row);
-  ;
   if (start.column > l) {
     start.column = l;
   }
@@ -161,6 +163,7 @@ void Cursor::move_to_end_of_document(bool anchor) {
   if (start.row > 0) {
     start.row--;
   }
+  move_to_end_of_line(anchor);
   if (!anchor) {
     end = start;
   }

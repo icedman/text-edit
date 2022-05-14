@@ -4,6 +4,7 @@
 #include "keybindings.h"
 #include "treesitter.h"
 #include "utf8.h"
+#include "textmate.h"
 
 #include <algorithm>
 
@@ -70,12 +71,10 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->move_to_end_of_document(true);
   }
   if (cmd.command == "duplicate_selection") {
-    if (doc->has_selection()) {
-      doc->copy();
-    }
-    // std::u16string selected_text = doc->selected_text();
-    doc->move_right();
-    doc->paste();
+    doc->duplicate_selection();
+  }
+  if (cmd.command == "duplicate_line") {
+    doc->duplicate_line();
   }
   if (cmd.command == "select_line") {
     doc->move_to_start_of_line();
@@ -347,7 +346,8 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
 
   if (key_sequence == "enter") {
     if (on_submit) {
-      return on_submit(doc->buffer.text());
+      std::u16string value = doc->buffer.text();
+      return on_submit(value);
     }
     return false;
   }
@@ -356,4 +356,31 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
   request_autocomplete = false;
   request_treesitter = false;
   return res;
+}
+
+editors_t::editors_t() : selected(0)
+{}
+
+EditorPtr editors_t::add_editor(std::string path)
+{
+  EditorPtr e = std::make_shared<editor_t>();
+  editors.push_back(e);
+
+  e->draw_tab_stops = true;
+  e->request_treesitter = true;
+
+  DocumentPtr doc = e->doc;
+  doc->load(path);
+  int lang_id = Textmate::load_language(path);
+  doc->set_language(Textmate::language_info(lang_id));
+  return e;
+}
+
+EditorPtr editors_t::current_editor()
+{
+  for(auto e : editors) {
+    e->show = false;
+  }
+  editors[selected]->show = true;
+  return editors[selected];
 }

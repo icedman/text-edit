@@ -60,9 +60,7 @@ void Document::initialize(std::u16string &str) {
 
   buffer.flush_changes();
   blocks.clear();
-  snap();
 
-  blocks.clear();
   int l = size();
   for (int i = 0; i < l; i++) {
     add_block_at(i);
@@ -79,6 +77,8 @@ void Document::initialize(std::u16string &str) {
   if (tab_string.size() == 0) {
     tab_string = u"  ";
   }
+
+  snap();
 }
 
 void Document::set_language(language_info_ptr lang) {
@@ -150,13 +150,17 @@ Cursor &Document::cursor() {
 
 void Document::move_up(bool anchor) {
   for (auto &c : cursors) {
-    c.move_up(anchor);
+    if (!c.move_up(anchor)) {
+      c.move_to_start_of_document(anchor);
+    }
   }
 }
 
 void Document::move_down(bool anchor) {
   for (auto &c : cursors) {
-    c.move_down(anchor);
+    if (!c.move_down(anchor)) {
+      c.move_to_end_of_document(anchor);
+    }
   }
 }
 
@@ -241,6 +245,30 @@ void Document::select_word_from_cursor() {
   for (auto &c : cursors) {
     c.clear_selection();
     c.select_word_under();
+  }
+}
+
+void Document::duplicate_selection()
+{
+  if (has_selection()) {
+    copy();
+    move_right();
+  }
+  paste();
+}
+
+void Document::duplicate_line()
+{
+  for (auto &c : cursors) {
+    begin_cursor_markers(c);
+    std::u16string r = u"\n";
+    optional<std::u16string> row = buffer.line_for_row(c.start.row);
+    if (row) {
+      r += *row;
+    }
+    c.move_to_end_of_line();
+    c.insert_text(r);
+    end_cursor_markers(c);
   }
 }
 
@@ -931,6 +959,7 @@ void Document::clear_autocomplete(bool force) {
 void Document::run_search(std::u16string key, Point first_index) {
   if (key.size() < 3)
     return;
+
   if (search_key != key) {
     search_key = key;
     if (searches.find(key) != searches.end()) {
@@ -960,7 +989,7 @@ SearchPtr Document::search() {
 }
 
 void Document::clear_search(bool force) {
-  if (force || search_key != subsequence_text()) {
+  if (force) {
     search_key = u"";
   }
 

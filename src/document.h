@@ -115,6 +115,8 @@ public:
   void selection_to_uppercase();
   void selection_to_lowercase();
   void select_word_from_cursor();
+  void duplicate_selection();
+  void duplicate_line();
   void add_cursor_from_selected_word();
   bool has_selection();
   void clear_selection();
