@@ -1007,8 +1007,11 @@ int main(int argc, char **argv) {
     }
 
     if (cmd.command == "switch_tab") {
-      editors.selected = !editors.selected;
-      focused = editors.current_editor();
+      int idx = std::stoi(u16string_to_string(cmd.params));
+      if (idx < editors.editors.size()) {
+        editors.selected = idx;
+        focused = editors.current_editor();
+      }
     }
 
     // todo move to view
