@@ -15,7 +15,8 @@ enum tinywl_cursor_mode {
     TINYWL_CURSOR_RESIZE,
 };
 
-#include <stdbool.h> #include <stdio.h>
+#include <stdbool.h> 
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>

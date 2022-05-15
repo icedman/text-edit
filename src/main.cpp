@@ -19,13 +19,19 @@
 
 #include "cursor.h"
 #include "document.h"
-#include "editor.h"
-#include "input.h"
 #include "keybindings.h"
+#include "menu.h"
 #include "textmate.h"
 #include "theme.h"
 #include "utf8.h"
+
+#include "editor.h"
+#include "input.h"
+#include "ui.h"
 #include "view.h"
+
+// symbols
+const wchar_t *symbol_tab = L"\u2847";
 
 // theme
 bool use_system_colors = true;
@@ -181,7 +187,7 @@ void draw_text(view_ptr view, const char *text, int align = 1, int margin = 0,
   draw_text(view->computed, text, align, margin);
 }
 
-void draw_gutter_line(EditorPtr editor, view_ptr view, int screen_row, int row,
+void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
                       const char *text, std::vector<textstyle_t> &styles) {
   screen_row += view->computed.y;
   int screen_col = view->computed.x;
@@ -201,8 +207,8 @@ void draw_gutter_line(EditorPtr editor, view_ptr view, int screen_row, int row,
   attroff(COLOR_PAIR(pair));
 }
 
-void draw_gutter(EditorPtr editor, view_ptr view) {
-  if (!view->show)
+void draw_gutter(editor_ptr editor, view_ptr view) {
+  if (!view->show || !editor->show)
     return;
 
   int scroll_y = editor->scroll.y;
@@ -254,8 +260,8 @@ void draw_gutter(EditorPtr editor, view_ptr view) {
   }
 }
 
-void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
-                    BlockPtr block, int *height = 0) {
+void draw_text_line(editor_ptr editor, int screen_row, int row,
+                    const char *text, BlockPtr block, int *height = 0) {
   std::vector<textstyle_t> &styles = block->styles;
 
   int scroll_x = editor->scroll.x;
@@ -291,7 +297,7 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
   }
 
   bool is_cursor_row =
-      (editor->focused && (row == doc->cursor().start.row || fold_size));
+      (editor->has_focus() && (row == doc->cursor().start.row || fold_size));
   int default_pair = pair_for_color(fg, false, is_cursor_row);
   for (int i = scroll_x; i < l; i++) {
     int pair = default_pair;
@@ -382,18 +388,20 @@ void draw_text_line(EditorPtr editor, int screen_row, int row, const char *text,
       attron(A_UNDERLINE);
     }
 
-    // render tab stop
-    wchar_t *tab = NULL;
+    // render symbols
+    wchar_t *symbol = NULL;
+
+    // tab stop
     if (tab_size > 0 && (i % tab_size == 0) && i < indent_size) {
       pair = pair_for_color(cmt, selected, is_cursor_row);
-      const wchar_t *_tab = L"\u2847";
-      tab = (wchar_t *)_tab;
+      symbol = (wchar_t *)symbol_tab;
+      ch = '|';
     }
 
     // render the character
     attron(COLOR_PAIR(pair));
-    if (tab != NULL) {
-      addwstr(tab);
+    if (symbol != NULL) {
+      addwstr(symbol);
     } else {
       addch(ch);
     }
@@ -436,7 +444,7 @@ bool compare_brackets(Bracket a, Bracket b) {
   return compare_range(a.range, b.range);
 }
 
-void draw_text_buffer(EditorPtr editor) {
+void draw_text_buffer(editor_ptr editor) {
   if (!editor->show)
     return;
 
@@ -513,75 +521,49 @@ void draw_text_buffer(EditorPtr editor) {
     }
   }
 
-  for (int i = idx; i < editor->computed.h; i++) {
+  for (int i = idx + offset_y; i < editor->computed.h; i++) {
     move(editor->computed.y + i, editor->computed.x);
     // addch('~')
     clrtoeol();
   }
 }
 
-void draw_search(EditorPtr editor, SearchPtr search) {
-  DocumentPtr doc = editor->doc;
-
-  int row = 0;
-  int def = pair_for_color(cmt, false, true);
+void draw_status(status_line_t *status) {
+  if (!status->show)
+    return;
   int sel = pair_for_color(fg, true, false);
-
-  std::stringstream ss;
-  ss << search->matches.size();
-  ss << " found";
-
-  draw_text({width - 20, height - 1, 20, 1}, ss.str().c_str(), 0, 0, sel);
+  for (auto placeholder : status->items) {
+    status_item_ptr item = placeholder.second;
+    if (!item->show)
+      continue;
+    int pair = item->color ? item->color : sel;
+    draw_text({item->computed.x, item->computed.y, item->computed.w,
+               item->computed.h},
+              item->text.c_str(), item->align, 0, pair);
+  }
 }
 
-void draw_autocomplete(EditorPtr editor, AutoCompletePtr autocomplete) {
-  DocumentPtr doc = editor->doc;
+void draw_menu(MenuPtr menu, editor_ptr editor) {
+  if (!menu->show || !menu->items.size())
+    return;
 
   int row = 0;
   int def = pair_for_color(cmt, false, true);
   int sel = pair_for_color(fg, true, false);
 
-  int w = 0;
-  int h = 0;
-
-  // get dimensions
-  for (auto m : autocomplete->matches) {
-    if (w < m.string.size()) {
-      w = m.string.size();
-    }
-    h++;
-    if (h > 10)
-      break;
-  }
-
   int margin = 1;
-  w += (margin * 2);
-
-  optional<Range> sub = doc->subsequence_range();
+  int w = menu->frame.w;
+  int h = menu->frame.h;
+  int start = menu->scroll.y;
+  int screen_row = menu->frame.y;
+  int screen_col = menu->frame.x;
   int offset_row = 0;
-  int screen_col = editor->cursor.x;
-  if (sub) {
-    screen_col -= ((*sub).end.column - (*sub).start.column);
-  }
 
-  if (editor->cursor.x + w > width) {
-    screen_col = editor->cursor.x - w;
-  }
-  if (editor->cursor.y + 2 + h > height) {
-    offset_row = -(h + 1);
-  }
-
-  screen_col -= margin;
-
-  int start = 0;
-  if (autocomplete->selected >= h) {
-    start = (autocomplete->selected) - h;
-  }
-  for (int i = start; i < autocomplete->matches.size(); i++) {
-    auto m = autocomplete->matches[i];
-    int pair = autocomplete->selected == i ? sel : def;
+  for (int i = start; i < menu->items.size(); i++) {
+    auto m = menu->items[i];
+    int pair = menu->cursor.y == i ? sel : def;
     int screen_row = editor->cursor.y + 1 + row++;
-    std::string text = u16string_to_string(m.string).substr(0, w - 1);
+    std::string text = m.name.substr(0, w - 1);
     attron(COLOR_PAIR(pair));
     move(screen_row + offset_row, screen_col);
     draw_clear(w);
@@ -593,8 +575,8 @@ void draw_autocomplete(EditorPtr editor, AutoCompletePtr autocomplete) {
   }
 }
 
-void draw_tree_sitter(EditorPtr editor, view_ptr view, TreeSitterPtr treesitter,
-                      Cursor cursor) {
+void draw_tree_sitter(editor_ptr editor, view_ptr view,
+                      TreeSitterPtr treesitter, Cursor cursor) {
   if (!view->show)
     return;
   std::vector<TSNode> nodes =
@@ -710,45 +692,50 @@ int main(int argc, char **argv) {
   Textmate::load_theme(argTheme);
   theme_info_t info = Textmate::theme_info();
 
-  TextFieldPtr input;
-  input = std::make_shared<textfield_t>();
+  MenuPtr menu = std::make_shared<menu_t>();
 
   editors_t editors;
-  EditorPtr editor = editors.add_editor(file_path);
-  editors.add_editor("./src/document.cpp");
+  editor_ptr editor = editors.add_editor(file_path);
+  // editors.add_editor("./src/document.cpp");
 
   view_ptr root = std::make_shared<column_t>();
   view_ptr main = std::make_shared<row_t>();
-  view_ptr status = std::make_shared<row_t>();
-  view_ptr status_message = std::make_shared<row_t>();
-  view_ptr status_line_col = std::make_shared<row_t>();
-  status->children.push_back(status_message);
-  status->children.push_back(status_line_col);
-  status_message->flex = 3;
-  status_line_col->flex = 2;
-  root->children.push_back(main);
-  root->children.push_back(status);
-  root->children.push_back(input);
+  status_bar_ptr status = std::make_shared<status_bar_t>();
+  // view_ptr status = std::make_shared<row_t>();
+  // view_ptr status_message = std::make_shared<row_t>();
+  // view_ptr status_line_col = std::make_shared<row_t>();
+  // status->add_child(status_message);
+  // status->add_child(status_line_col);
+  // status_message->flex = 3;
+  // status_line_col->flex = 2;
+  root->add_child(main);
+  root->add_child(status);
   view_ptr gutter = std::make_shared<view_t>();
-  main->children.push_back(gutter);
+  main->add_child(gutter);
 
   view_ptr editor_views = std::make_shared<view_t>();
   editor_views->flex = 3;
-  for(auto e : editors.editors) {
+  for (auto e : editors.editors) {
     e->flex = 1;
-    editor_views->children.push_back(e);
+    editor_views->add_child(e);
   }
-  main->children.push_back(editor_views);
+  main->add_child(editor_views);
 
   view_ptr sitter = std::make_shared<view_t>();
-  main->children.push_back(sitter);
+  main->add_child(sitter);
 
   main->flex = 1;
-  status->frame.h = 1;
   gutter->frame.w = 8;
   sitter->flex = 1;
   sitter->show = false;
-  input->frame.h = 1;
+
+  goto_ptr gotoline = std::make_shared<goto_t>();
+  find_ptr find = std::make_shared<find_t>();
+  root->add_child(gotoline);
+  root->add_child(find);
+
+  std::vector<editor_ptr> input_popups = {gotoline->input, find->input,
+                                          find->replace};
 
   setlocale(LC_ALL, "");
 
@@ -772,13 +759,13 @@ int main(int argc, char **argv) {
   std::stringstream message;
   message << "Welcome to text-edit";
 
-  EditorPtr focused = editor;
-
   int warm_start = 3;
   int last_layout_size = -1;
   std::string last_key_sequence;
 
-  EditorPtr prev;
+  view_t::input_focus = editor;
+
+  editor_ptr prev;
   bool running = true;
   while (running) {
     if (prev != editors.current_editor()) {
@@ -790,16 +777,16 @@ int main(int argc, char **argv) {
     TextBuffer &text = doc->buffer;
     int size = doc->size();
 
-    // todo.. remove focused
-    editor->focused = focused == editor;
-    input->focused = focused == input;
-    if (input->focused != input->show) {
-      input->show = input->focused;
-      last_layout_size = -1;
-      if (!input->show) {
-        editor->doc->clear_search();
+    bool has_input = false;
+    for (auto i : input_popups) {
+      bool has_children_focus = i->parent->has_children_focus();
+      if (has_children_focus != i->parent->show) {
+        i->parent->show = has_children_focus;
+        last_layout_size = -1;
       }
+      has_input = has_input | i->has_focus();
     }
+    // status->show = !has_input;
 
     if (last_layout_size != size) {
       std::stringstream s;
@@ -810,67 +797,150 @@ int main(int argc, char **argv) {
       last_layout_size = size;
     }
 
-    for(auto e : editors.editors) {
+    for (auto e : editors.editors) {
       draw_text_buffer(e);
       draw_gutter(e, gutter);
     }
-    draw_text_buffer(input);
+
+    SearchPtr search = doc->search();
+    if (find->show && search) {
+      if (search) {
+        message.str("");
+        message << " ";
+        if (search->matches.size()) {
+          message << (search->selected + 1);
+          message << " of ";
+        }
+        message << search->matches.size();
+        message << " found";
+      }
+    }
+
+    for (auto input : input_popups) {
+      if (!input->parent->show) {
+        continue;
+      }
+      draw_text_buffer(input);
+      draw_status((status_line_t *)(input->parent));
+    }
 
     Cursor cursor = doc->cursor();
 
     // status
-    std::stringstream ss;
-    if (doc->insert_mode) {
-      ss << "INS   ";
-    } else {
-      ss << "OVR   ";
-    }
-    ss << doc->language->id;
-    ss << "  ";
-    // ss << " line ";
-    ss << (cursor.start.row + 1);
-    // ss << " col ";
-    ss << ",";
-    ss << (cursor.start.column + 1);
-    ss << "  ";
-    // ss << doc->buffer.extent().column;
-
-    if (size > 0) {
-      int p = (100 * cursor.start.row) / size;
-      if (p == 0) {
-        ss << "top";
-      } else if (p == 100) {
-        ss << "end";
-      } else {
-        ss << p;
-        ss << "%";
-      }
-    }
 
     if (status->show) {
-      draw_text(status_message, message.str().c_str(), -1);
-      draw_text(status_line_col, ss.str().c_str(), 1);
+
+      std::stringstream ss;
+      if (doc->insert_mode) {
+        ss << "INS   ";
+      } else {
+        ss << "OVR   ";
+      }
+      ss << doc->language->id;
+      ss << "  ";
+      // ss << " line ";
+      ss << (cursor.start.row + 1);
+      // ss << " col ";
+      ss << ",";
+      ss << (cursor.start.column + 1);
+      ss << "  ";
+      // ss << doc->buffer.extent().column;
+
+      if (size > 0) {
+        int p = (100 * cursor.start.row) / size;
+        if (p == 0) {
+          ss << "top";
+        } else if (p == 100) {
+          ss << "end";
+        } else {
+          ss << p;
+          ss << "%";
+        }
+      }
+
+      status->items["message"]->text = message.str();
+      status->items["info"]->text = ss.str();
+      status->items["message"]->color = pair_for_color(cmt, false, false);
+      status->items["info"]->color = pair_for_color(cmt, false, false);
+      draw_status(status.get());
     }
 
-    SearchPtr search = doc->search();
-    if (search) {
-      draw_search(editor, search);
-    }
+    menu->show = false;
+    menu->items.clear();
 
     AutoCompletePtr autocomplete = doc->autocomplete();
-    if (autocomplete) {
-      draw_autocomplete(editor, autocomplete);
+    if (!menu->show && autocomplete) {
+      int margin = 1;
+      int w = 0;
+      for (auto m : autocomplete->matches) {
+        if (w < m.string.size()) {
+          w = m.string.size();
+        }
+        menu->items.push_back(menu_item_t{u16string_to_string(m.string)});
+      }
+      w += margin * 2;
+      menu->frame.w = w;
+      menu->frame.h = menu->items.size();
+      if (menu->frame.h > 10) {
+        menu->frame.h = 10;
+      }
+      int h = menu->frame.h;
+
+      int offset_row = 0;
+      int screen_row = editor->cursor.y;
+      int screen_col = editor->cursor.x;
+
+      optional<Range> sub = doc->subsequence_range();
+      if (sub) {
+        screen_col -= ((*sub).end.column - (*sub).start.column);
+      }
+      if (editor->cursor.x + w > width) {
+        screen_col = editor->cursor.x - w;
+      }
+      if (editor->cursor.y + 2 + h > height) {
+        offset_row = -(h + 1);
+      }
+
+      screen_col -= margin;
+      menu->frame.x = screen_col;
+      menu->frame.y = screen_row;
+      menu->scroll.x = 0;
+      menu->update_scroll();
+
+      menu->on_submit = [&doc](int selected) {
+        AutoCompletePtr autocomplete = doc->autocomplete();
+        optional<Range> range = doc->subsequence_range();
+        if (range) {
+          std::u16string value = autocomplete->matches[selected].string;
+          doc->clear_cursors();
+          doc->cursor().copy_from(Cursor{(*range).start, (*range).end});
+          doc->insert_text(value);
+        }
+        doc->clear_autocomplete(true);
+        return true;
+      };
+
+      menu->on_cancel = [&doc]() {
+        doc->clear_autocomplete(true);
+        return true;
+      };
+
+      menu->show = (menu->items.size() > 0);
     }
+
+    draw_menu(menu, editor);
 
     TreeSitterPtr treesitter = doc->treesitter();
     if (treesitter) {
       draw_tree_sitter(editor, sitter, treesitter, doc->cursor());
     }
 
-    move(focused->cursor.y, focused->cursor.x);
+    // blit
+    move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
     curs_set(1);
     refresh();
 
+    // input
     int ch = -1;
     std::string key_sequence;
     int frames = 0;
@@ -914,57 +984,32 @@ int main(int argc, char **argv) {
     }
 
     curs_set(0);
-
     if (ch == 27) {
       key_sequence = "escape";
       ch = -1;
     }
 
-    // popups
-    if (autocomplete) {
-      if (key_sequence == "up") {
-        if (autocomplete->selected > 0) {
-          autocomplete->selected--;
+    // todo .. move somewhere?
+    if (find->show) {
+      if (key_sequence == "tab" && find->enable_replace) {
+        if (view_t::input_focus != find->replace) {
+          view_t::input_focus = find->replace;
+        } else {
+          view_t::input_focus = find->input;
         }
-        continue;
-      }
-      if (key_sequence == "down") {
-        if (autocomplete->selected + 1 < autocomplete->matches.size()) {
-          autocomplete->selected++;
-        }
-        continue;
-      }
-      if (key_sequence == "enter" || key_sequence == "tab") {
-        optional<Range> range = doc->subsequence_range();
-        if (range) {
-          std::u16string selected =
-              autocomplete->matches[autocomplete->selected].string;
-          doc->clear_cursors();
-          doc->cursor().copy_from(Cursor{(*range).start, (*range).end});
-          doc->insert_text(selected);
-        }
-        doc->clear_autocomplete(true);
-        continue;
-      }
-      if (key_sequence == "left" || key_sequence == "right") {
-        doc->clear_autocomplete(true);
         continue;
       }
     }
-
-    if (search && search->matches.size() > 0) {
-      bool scroll_to_selected = false;
+    if (search) {
       if (key_sequence == "up") {
         if (search->selected > 0) {
           search->selected--;
         }
-        scroll_to_selected = true;
       }
       if (key_sequence == "down") {
         if (search->selected + 1 < search->matches.size()) {
           search->selected++;
         }
-        scroll_to_selected = true;
       }
       Range range = search->matches[search->selected];
       Cursor &cursor = doc->cursor();
@@ -974,18 +1019,18 @@ int main(int argc, char **argv) {
         editor->on_input(-1, ""); // ping
         continue;
       }
-      // if (key_sequence == "enter" || key_sequence == "tab") {
-      //   continue;
-      // }
-      // if (key_sequence == "left" || key_sequence == "right") {
-      //   continue;
-      // }
     }
 
-    if (focused->on_input(ch, key_sequence)) {
+    if (menu->show) {
+      if (menu->on_input(ch, key_sequence)) {
+        continue;
+      }
+    }
+    if (view_t::input_focus->on_input(ch, key_sequence)) {
       continue;
     }
 
+    // globl commands
     Command &cmd = command_from_keys(key_sequence, last_key_sequence);
     if (cmd.command == "await") {
       last_key_sequence = key_sequence;
@@ -995,9 +1040,13 @@ int main(int argc, char **argv) {
 
     if (key_sequence != "") {
       message.str("");
-      message << " [";
+      message << "[";
       if (cmd.command != "") {
         message << cmd.command;
+        if (cmd.params != "") {
+          message << ":";
+          message << cmd.params;
+        }
       } else {
         message << key_sequence;
       }
@@ -1007,31 +1056,49 @@ int main(int argc, char **argv) {
     }
 
     if (cmd.command == "switch_tab") {
-      int idx = std::stoi(u16string_to_string(cmd.params));
+      int idx = std::stoi(cmd.params);
       if (idx < editors.editors.size()) {
         editors.selected = idx;
-        focused = editors.current_editor();
+        view_t::input_focus = editors.current_editor();
       }
     }
 
     // todo move to view
-    if (cmd.command == "search_text") {
-      focused = input;
-      input->cursor = {0, 0};
-      input->on_submit = [&editor, &message](std::u16string value) {
-        // remove new line
-        if (value.size() > 1) {
-          value = value.substr(0, value.size()-1);
-        }
+    if (cmd.command == "search_text" || cmd.command == "search_and_replace") {
+      view_t::input_focus = find->input;
+      find->enable_replace = cmd.command == "search_and_replace";
+      find->input->cursor = {0, 0};
+      find->input->on_submit = [&editor, &find](std::u16string value) {
         editor->doc->run_search(value, editor->doc->cursor().start);
         return true;
       };
+      find->replace->cursor = {0, 0};
+      find->replace->on_submit = [&editor, &search,
+                                  &find](std::u16string value) {
+        if (!search || search->matches.size() <= 0) {
+          find->input->on_input(-1, "enter");
+          return true;
+        }
+        if (search->selected >= 0) {
+          editor->doc->insert_text(value);
+          search->matches.erase(search->matches.begin() + search->selected);
+        }
+        if (search->selected >= search->matches.size()) {
+          search->selected = search->matches.size() - 1;
+        }
+        return true;
+      };
+      find->replace_title->show = find->enable_replace;
+      find->replace->show = find->enable_replace;
+      if (find->enable_replace && search && search->matches.size()) {
+        view_t::input_focus = find->replace;
+      }
     }
     if (cmd.command == "jump_to_line") {
-      focused = input;
-      input->cursor = {0, 0};
-      input->on_submit = [&focused, &editor, &message](std::u16string value) {
-        focused = editor;
+      view_t::input_focus = gotoline->input;
+      gotoline->input->cursor = {0, 0};
+      gotoline->input->on_submit = [&editor, &message](std::u16string value) {
+        view_t::input_focus = editor;
         try {
           int line = std::stoi(u16string_to_string(value)) - 1;
           editor->doc->go_to_line(line);
@@ -1044,8 +1111,8 @@ int main(int argc, char **argv) {
     }
 
     if (cmd.command == "cancel") {
-      if (focused != editor) {
-        focused = editor;
+      if (view_t::input_focus != editor) {
+        view_t::input_focus = editor;
         editor->doc->clear_search(true);
       }
     }

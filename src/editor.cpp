@@ -2,9 +2,9 @@
 #include "autocomplete.h"
 #include "input.h"
 #include "keybindings.h"
+#include "textmate.h"
 #include "treesitter.h"
 #include "utf8.h"
-#include "textmate.h"
 
 #include <algorithm>
 
@@ -40,6 +40,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   if (cmd.command == "cancel") {
     doc->clear_cursors();
     doc->clear_autocomplete(true);
+    doc->clear_search(true);
   }
   if (cmd.command == "undo") {
     doc->undo();
@@ -238,8 +239,6 @@ bool editor_t::on_idle(int frame) {
   return false;
 }
 
-void editor_t::on_draw() {}
-
 void editor_t::update_scroll() {
   int hh = computed.h;
 
@@ -346,8 +345,11 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
 
   if (key_sequence == "enter") {
     if (on_submit) {
-      std::u16string value = doc->buffer.text();
-      return on_submit(value);
+      // std::u16string value = doc->buffer.text();
+      optional<std::u16string> row = doc->buffer.line_for_row(0);
+      if (row) {
+        return on_submit(*row);
+      }
     }
     return false;
   }
@@ -358,12 +360,10 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
   return res;
 }
 
-editors_t::editors_t() : selected(0)
-{}
+editors_t::editors_t() : selected(0) {}
 
-EditorPtr editors_t::add_editor(std::string path)
-{
-  EditorPtr e = std::make_shared<editor_t>();
+editor_ptr editors_t::add_editor(std::string path) {
+  editor_ptr e = std::make_shared<editor_t>();
   editors.push_back(e);
 
   e->draw_tab_stops = true;
@@ -376,9 +376,8 @@ EditorPtr editors_t::add_editor(std::string path)
   return e;
 }
 
-EditorPtr editors_t::current_editor()
-{
-  for(auto e : editors) {
+editor_ptr editors_t::current_editor() {
+  for (auto e : editors) {
     e->show = false;
   }
   editors[selected]->show = true;

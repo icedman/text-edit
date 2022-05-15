@@ -36,6 +36,8 @@ bool rects_equal(rect_t a, rect_t b) {
   return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
 }
 
+view_ptr view_t::input_focus;
+
 void view_t::layout(rect_t c) {
   constraint = c;
 

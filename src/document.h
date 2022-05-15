@@ -26,7 +26,7 @@ public:
 // bool prev_comment_block;
 // bool string_block;
 // bool prev_string_block;
-// } --- 
+// } ---
 
 class Block : public block_data_t {
 public:

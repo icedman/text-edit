@@ -29,9 +29,9 @@ typedef std::vector<view_ptr> view_list;
 
 struct view_t {
   view_t()
-      : frame{0, 0, 0, 0}, constraint{0, 0, 0, 0}, computed{0, 0, 0, 0},
-        scroll{0, 0}, cursor{0, 0}, flex(0), direction(0), show(true),
-        focused(false) {}
+      : parent(nullptr), frame{0, 0, 0, 0}, constraint{0, 0, 0, 0},
+        computed{0, 0, 0, 0}, scroll{0, 0}, cursor{0, 0}, flex(0), direction(0),
+        show(true) {}
 
   rect_t frame;      // preferred
   rect_t constraint; // set by parent
@@ -42,8 +42,8 @@ struct view_t {
   int flex;
   int direction;
   bool show;
-  bool focused;
 
+  view_t *parent;
   view_list children;
 
   void layout(rect_t constraint);
@@ -58,7 +58,29 @@ struct view_t {
   virtual int *_y(rect_t *rect);
   virtual bool on_idle(int frame) { return false; }
   virtual bool on_input(int ch, std::string key_sequence) { return false; }
-  virtual void on_draw() {}
+
+  void add_child(view_ptr child) {
+    children.push_back(child);
+    child->parent = this;
+  }
+
+  bool has_focus() {
+    if (input_focus && input_focus.get() == this) {
+      return true;
+    }
+    return false;
+  }
+
+  bool has_children_focus() {
+    for (auto c : children) {
+      if (input_focus && input_focus.get() == c.get()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static view_ptr input_focus;
 };
 
 struct column_t : view_t {
@@ -68,6 +90,8 @@ struct column_t : view_t {
   int *_y(rect_t *rect);
 };
 
-struct row_t : view_t {};
+struct row_t : view_t {
+  row_t() : view_t() {}
+};
 
 #endif // TE_VIEW_H

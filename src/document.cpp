@@ -14,7 +14,8 @@
 
 static std::u16string clipboard_data;
 
-Block::Block() : block_data_t(), line(0), line_height(1), line_length(0), dirty(true) {}
+Block::Block()
+    : block_data_t(), line(0), line_height(1), line_length(0), dirty(true) {}
 
 void Block::make_dirty() {
   dirty = true;
@@ -248,8 +249,7 @@ void Document::select_word_from_cursor() {
   }
 }
 
-void Document::duplicate_selection()
-{
+void Document::duplicate_selection() {
   if (has_selection()) {
     copy();
     move_right();
@@ -257,8 +257,7 @@ void Document::duplicate_selection()
   paste();
 }
 
-void Document::duplicate_line()
-{
+void Document::duplicate_line() {
   for (auto &c : cursors) {
     begin_cursor_markers(c);
     std::u16string r = u"\n";
@@ -971,6 +970,7 @@ void Document::run_search(std::u16string key, Point first_index) {
 
     SearchPtr search = std::make_shared<Search>(key, first_index);
     search->document = this;
+    buffer.flush_changes();
     search->snapshot = buffer.create_snapshot();
     searches[key] = search;
     Search::run(search.get());

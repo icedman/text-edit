@@ -28,6 +28,9 @@ bool Search::is_disposable() {
   if (state < Search::State::Ready) {
     return false;
   }
+  if (matches.size() == 0) {
+    ttl /= 2;
+  }
   return --ttl <= 0;
 }
 
