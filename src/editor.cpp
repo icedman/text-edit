@@ -242,15 +242,16 @@ bool editor_t::on_idle(int frame) {
 void editor_t::update_scroll() {
   int hh = computed.h;
 
-  Cursor cursor = doc->cursor();
+  Cursor cur = doc->cursor();
+  point_t cursor = {cur.start.column, cur.start.row};
 
   // compute wrap
   int offset_y = 0;
   if (wrap) {
-    int s = cursor.start.row - computed.h;
+    int s = cursor.y - computed.h;
     if (s < 0)
       s = 0;
-    for (int i = s; i < cursor.start.row; i++) {
+    for (int i = s; i < cursor.y; i++) {
       BlockPtr block = doc->block_at(i);
       for (auto f : doc->folds) {
         if (is_point_within_range({i, 0}, f)) {
@@ -271,7 +272,7 @@ void editor_t::update_scroll() {
   for (auto f : doc->folds) {
     if (f.start.row < prev_end)
       continue;
-    if (cursor.start.row > f.start.row) {
+    if (cursor.y > f.start.row) {
       offset_folds += (f.end.row - f.start.row);
     }
     prev_end = f.end.row;
@@ -280,12 +281,11 @@ void editor_t::update_scroll() {
   // compute the scroll
   int size = doc->size();
   int lead = 0;
-  if (cursor.start.row >=
-      scroll.y + (hh - 1) - lead - offset_y + offset_folds) {
-    scroll.y = -(hh - 1) + cursor.start.row + lead + offset_y - offset_folds;
+  if (cursor.y >= scroll.y + (hh - 1) - lead - offset_y + offset_folds) {
+    scroll.y = -(hh - 1) + cursor.y + lead + offset_y - offset_folds;
   }
-  if (scroll.y + lead + offset_folds > cursor.start.row) {
-    scroll.y = -lead + cursor.start.row - offset_folds;
+  if (scroll.y + lead + offset_folds > cursor.y) {
+    scroll.y = -lead + cursor.y - offset_folds;
   }
   if (scroll.y + hh / 2 > size) {
     scroll.y = size - hh / 2;
@@ -294,11 +294,11 @@ void editor_t::update_scroll() {
     scroll.y = 0;
   }
   int ww = computed.w;
-  if (cursor.start.column >= scroll.x + (ww - 1) - lead) {
-    scroll.x = -(ww - 1) + cursor.start.column + lead;
+  if (cursor.x >= scroll.x + (ww - 1) - lead) {
+    scroll.x = -(ww - 1) + cursor.x + lead;
   }
-  if (scroll.x + lead > cursor.start.column) {
-    scroll.x = -lead + cursor.start.column;
+  if (scroll.x + lead > cursor.x) {
+    scroll.x = -lead + cursor.x;
   }
   if (scroll.x + ww / 2 > size) {
     scroll.x = size - ww / 2;
@@ -363,8 +363,11 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
 editors_t::editors_t() : selected(0) {}
 
 editor_ptr editors_t::add_editor(std::string path) {
+  // find existing
+
   editor_ptr e = std::make_shared<editor_t>();
   editors.push_back(e);
+  selected = editors.size() - 1;
 
   e->draw_tab_stops = true;
   e->request_treesitter = true;

@@ -58,6 +58,7 @@ struct view_t {
   virtual int *_y(rect_t *rect);
   virtual bool on_idle(int frame) { return false; }
   virtual bool on_input(int ch, std::string key_sequence) { return false; }
+  virtual void update_scroll() {}
 
   void add_child(view_ptr child) {
     children.push_back(child);

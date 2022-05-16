@@ -7,6 +7,7 @@
 
 struct menu_item_t {
   std::string name;
+  std::string value;
 };
 
 struct menu_t : view_t {
@@ -20,8 +21,10 @@ struct menu_t : view_t {
 
   std::function<bool(int)> on_submit;
   std::function<bool()> on_cancel;
+
+  int selected;
 };
 
-typedef std::shared_ptr<menu_t> MenuPtr;
+typedef std::shared_ptr<menu_t> menu_ptr;
 
 #endif // TE_MENU_H

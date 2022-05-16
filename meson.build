@@ -194,6 +194,7 @@ executable('text-edit',
     'src/keybindings.cpp',
     'src/utf8.cpp',
     'src/treesitter.cpp',
+    'src/files.cpp',
     'src/view.cpp',
     'src/menu.cpp',
     'src/editor.cpp',
@@ -243,6 +244,15 @@ executable('keys_test',
         superstring_includes
     ],
     dependencies: [ curses_dep ]
+)
+executable('explorer_test',
+    'tests/explorer_test.cpp',
+    'src/files.cpp',
+    'libs/tm-parser/textmate/extensions/util.cpp',
+    include_directories: [
+        'src',
+        tm_parser_includes
+    ]
 )
 endif
 

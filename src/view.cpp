@@ -63,9 +63,17 @@ void view_t::layout(rect_t c) {
   if (total_flex == 0) {
     total_flex = 1;
   }
+
+  int total = (*_w(&constraint) - reserved);
+  int distributed = 0;
+  int *last = NULL;
   for (auto c : flexibles) {
-    *_w(&c->constraint) =
-        ((*_w(&constraint) - reserved) * c->flex) / total_flex;
+    *_w(&c->constraint) = (total * c->flex) / total_flex;
+    distributed += *_w(&c->constraint);
+    last = _w(&c->constraint);
+  }
+  if (last) {
+    *last = *last + (total - distributed);
   }
 
   for (auto c : children) {
@@ -80,6 +88,8 @@ void view_t::finalize() {
   *_y(&computed) = *_y(&constraint);
   *_w(&computed) = *_w(&constraint);
   *_h(&computed) = *_h(&constraint);
+
+  // printf("%d %d\n", constraint.w, constraint.h);
 
   int x = *_x(&computed);
   for (auto c : children) {

@@ -58,7 +58,7 @@ std::map<std::string, Command> commands = {
     {"alt+8", Command{"switch_tab", "7"}},
     {"alt+9", Command{"switch_tab", "8"}},
     {"alt+0", Command{"switch_tab", "9"}},
-    // {"ctrl+shift+|", Command{"toggle_pinned", ""}},
+
     {"ctrl+k", Command{"await", ""}},
     {"ctrl+k+ctrl+u", Command{"selection_to_uppercase", ""}},
     {"ctrl+k+ctrl+l", Command{"selection_to_lowercase", ""}},
@@ -67,6 +67,7 @@ std::map<std::string, Command> commands = {
     {"ctrl+k+ctrl+o", Command{"unindent", ""}},
     {"ctrl+k+ctrl+j", Command{"toggle_block_fold", ""}},
     {"ctrl+/", Command{"toggle_comment", ""}},
+    {"ctrl+`", Command{"toggle_explorer", ""}},
 
     {"ctrl+t", Command{"await", ""}},
     {"ctrl+t+ctrl+t", Command{"toggle_tree_sitter", ""}},

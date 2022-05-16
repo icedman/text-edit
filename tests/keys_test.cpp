@@ -34,15 +34,16 @@ int main(int argc, char **argv) {
   //   refresh();
   // }
 
-  while(running) {
+  while (running) {
     if (kbhit(500) != 0) {
-      char seq[4] = { 0,0,0,0 };
+      char seq[4] = {0, 0, 0, 0};
       read(STDIN_FILENO, &seq[0], 4);
       if (seq[0] == 'q') {
         running = false;
       }
-      for(int i=0; i<4; i++) {
-        if (seq[i] == 0) break;
+      for (int i = 0; i < 4; i++) {
+        if (seq[i] == 0)
+          break;
         char tmp[32];
         sprintf(tmp, ">%d %c", seq[i], seq[i]);
         move(i, 0);

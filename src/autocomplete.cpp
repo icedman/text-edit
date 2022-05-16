@@ -4,8 +4,6 @@
 #include <core/text-buffer.h>
 #include <pthread.h>
 
-#include "document.h"
-
 #define AUTOCOMPLETE_TTL 32
 
 AutoComplete::AutoComplete(std::u16string p)

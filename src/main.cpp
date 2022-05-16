@@ -19,6 +19,7 @@
 
 #include "cursor.h"
 #include "document.h"
+#include "files.h"
 #include "keybindings.h"
 #include "menu.h"
 #include "textmate.h"
@@ -543,35 +544,46 @@ void draw_status(status_line_t *status) {
   }
 }
 
-void draw_menu(MenuPtr menu, editor_ptr editor) {
+void draw_menu(menu_ptr menu, int color = 0, int selected_color = 0) {
   if (!menu->show || !menu->items.size())
     return;
 
   int row = 0;
-  int def = pair_for_color(cmt, false, true);
-  int sel = pair_for_color(fg, true, false);
+  int def = color ? color : pair_for_color(cmt, false, true);
+  int sel = selected_color ? selected_color : pair_for_color(fg, true, false);
 
   int margin = 1;
-  int w = menu->frame.w;
-  int h = menu->frame.h;
+  int w = menu->computed.w;
+  int h = menu->computed.h;
+  int screen_row = menu->computed.y;
+  int screen_col = menu->computed.x;
   int start = menu->scroll.y;
-  int screen_row = menu->frame.y;
-  int screen_col = menu->frame.x;
   int offset_row = 0;
+
+  // printf("%d %d %d %d\n", w, h, screen_row, screen_col);
 
   for (int i = start; i < menu->items.size(); i++) {
     auto m = menu->items[i];
-    int pair = menu->cursor.y == i ? sel : def;
-    int screen_row = editor->cursor.y + 1 + row++;
+    int pair = menu->selected == i ? sel : def;
+    int sc = screen_row + row++;
+    if (menu->selected == i) {
+      menu->cursor.y = sc + offset_row;
+    }
     std::string text = m.name.substr(0, w - 1);
     attron(COLOR_PAIR(pair));
-    move(screen_row + offset_row, screen_col);
+    move(sc + offset_row, screen_col);
     draw_clear(w);
-    move(screen_row + offset_row, screen_col + margin);
+    move(sc + offset_row, screen_col + margin);
     addstr(text.c_str());
     attroff(COLOR_PAIR(pair));
     if (row > h)
       break;
+  }
+
+  for (int i = row; i < h; i++) {
+    int sc = screen_row + row++;
+    move(sc + offset_row, screen_col);
+    draw_clear(w);
   }
 }
 
@@ -675,8 +687,15 @@ void layout(view_ptr root) {
   root->finalize();
 }
 
+editor_ptr open_document(std::string path, editors_t &editors, view_ptr view) {
+  editor_ptr e = editors.add_editor(path);
+  e->flex = 1;
+  view->add_child(e);
+  return e;
+}
+
 int main(int argc, char **argv) {
-  std::string file_path = "./tests/main.cpp";
+  std::string file_path = "./src/main.cpp";
   if (argc > 1) {
     file_path = argv[argc - 1];
   }
@@ -692,33 +711,38 @@ int main(int argc, char **argv) {
   Textmate::load_theme(argTheme);
   theme_info_t info = Textmate::theme_info();
 
-  MenuPtr menu = std::make_shared<menu_t>();
+  FilesPtr files = std::make_shared<Files>();
+  files->set_root_path("./");
+  // files->load("./libs/tree-sitter-grammars");
+  // files->load("./libs");
 
-  editors_t editors;
-  editor_ptr editor = editors.add_editor(file_path);
-  // editors.add_editor("./src/document.cpp");
+  menu_ptr menu = std::make_shared<menu_t>();
 
   view_ptr root = std::make_shared<column_t>();
   view_ptr main = std::make_shared<row_t>();
   status_bar_ptr status = std::make_shared<status_bar_t>();
-  // view_ptr status = std::make_shared<row_t>();
-  // view_ptr status_message = std::make_shared<row_t>();
-  // view_ptr status_line_col = std::make_shared<row_t>();
-  // status->add_child(status_message);
-  // status->add_child(status_line_col);
-  // status_message->flex = 3;
-  // status_line_col->flex = 2;
   root->add_child(main);
   root->add_child(status);
+
+  menu_ptr explorer = std::make_shared<menu_t>();
+  explorer->frame.w = 22;
+  main->add_child(explorer);
+
   view_ptr gutter = std::make_shared<view_t>();
   main->add_child(gutter);
 
   view_ptr editor_views = std::make_shared<view_t>();
   editor_views->flex = 3;
-  for (auto e : editors.editors) {
-    e->flex = 1;
-    editor_views->add_child(e);
-  }
+
+  editors_t editors;
+  // editor_ptr editor = editors.add_editor(file_path);
+  // editors.add_editor("./src/document.cpp");
+  // for (auto e : editors.editors) {
+  //   e->flex = 1;
+  //   editor_views->add_child(e);
+  // }
+  editor_ptr editor = open_document(file_path, editors, editor_views);
+
   main->add_child(editor_views);
 
   view_ptr sitter = std::make_shared<view_t>();
@@ -796,6 +820,11 @@ int main(int argc, char **argv) {
       layout(root);
       last_layout_size = size;
     }
+
+    draw_menu(explorer, pair_for_color(cmt, false, false),
+      explorer->has_focus() ? pair_for_color(cmt, true, false) :
+      pair_for_color(cmt, false, false)
+      );
 
     for (auto e : editors.editors) {
       draw_text_buffer(e);
@@ -879,14 +908,14 @@ int main(int argc, char **argv) {
         menu->items.push_back(menu_item_t{u16string_to_string(m.string)});
       }
       w += margin * 2;
-      menu->frame.w = w;
-      menu->frame.h = menu->items.size();
-      if (menu->frame.h > 10) {
-        menu->frame.h = 10;
+      menu->computed.w = w;
+      menu->computed.h = menu->items.size();
+      if (menu->computed.h > 10) {
+        menu->computed.h = 10;
       }
-      int h = menu->frame.h;
+      int h = menu->computed.h;
 
-      int offset_row = 0;
+      int offset_row = 1;
       int screen_row = editor->cursor.y;
       int screen_col = editor->cursor.x;
 
@@ -902,8 +931,8 @@ int main(int argc, char **argv) {
       }
 
       screen_col -= margin;
-      menu->frame.x = screen_col;
-      menu->frame.y = screen_row;
+      menu->computed.x = screen_col;
+      menu->computed.y = screen_row + offset_row;
       menu->scroll.x = 0;
       menu->update_scroll();
 
@@ -928,7 +957,7 @@ int main(int argc, char **argv) {
       menu->show = (menu->items.size() > 0);
     }
 
-    draw_menu(menu, editor);
+    draw_menu(menu);
 
     TreeSitterPtr treesitter = doc->treesitter();
     if (treesitter) {
@@ -937,7 +966,9 @@ int main(int argc, char **argv) {
 
     // blit
     move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
-    curs_set(1);
+    if (!explorer->has_focus()) {
+      curs_set(1);
+    }
     refresh();
 
     // input
@@ -953,6 +984,50 @@ int main(int argc, char **argv) {
       frames++;
 
       // background tasks
+      if (files->update() || !explorer->items.size()) {
+        explorer->items.clear();
+        FileList &tree = files->tree();
+        for (auto f : tree) {
+          std::string n;
+          int d = f->depth;
+          for (int i = 0; i < d*2; i++) {
+            n += " ";
+          }
+
+          if (f->is_directory) {
+            if (f->expanded) {
+              n += "- ";    
+            } else {
+              n += "+ ";
+            }
+          } else {
+            n += "  ";
+          }
+
+          n += f->name;
+          explorer->items.push_back(menu_item_t{n, f->full_path});
+        }
+
+        explorer->on_submit = [&files, &explorer, &editors,
+                               &editor_views](int idx) {
+          FileList &tree = files->tree();
+          FileItemPtr item = tree[idx];
+          if (item->is_directory) {
+            item->expanded = !item->expanded;
+            if (item->expanded) {
+              files->load(item->full_path);
+            } else {
+              files->rebuild_tree();
+              explorer->items.clear();
+            }
+          } else {
+            open_document(item->full_path, editors, editor_views);
+          }
+          return true;
+        };
+        break;
+      }
+
       if (editor->on_idle(frames)) {
         break;
       }
@@ -1027,6 +1102,7 @@ int main(int argc, char **argv) {
       }
     }
     if (view_t::input_focus->on_input(ch, key_sequence)) {
+      view_t::input_focus->update_scroll();
       continue;
     }
 
@@ -1053,6 +1129,26 @@ int main(int argc, char **argv) {
       message << "]";
       // message << " ";
       // message << doc->folds.size();
+    }
+
+    if (cmd.command == "toggle_explorer") {
+      if (!explorer->show && view_t::input_focus != explorer) {
+        explorer->show = true;
+        view_t::input_focus = explorer;
+        last_layout_size = -1;
+        continue;
+      } else if (explorer->show && view_t::input_focus == explorer) {
+        explorer->show = false;
+        view_t::input_focus = editor;
+        last_layout_size = -1;
+        continue;
+      }
+
+      if (view_t::input_focus != explorer) {
+        view_t::input_focus = explorer;
+      } else {
+        view_t::input_focus = editor;
+      }
     }
 
     if (cmd.command == "switch_tab") {
@@ -1141,9 +1237,10 @@ int main(int argc, char **argv) {
 
   endwin();
 
-  // shutting down...
+  // graceful exit... shutting down...
   int idx = 20;
-  while (Textmate::has_running_threads() && idx-- > 0) {
+  while ((Textmate::has_running_threads() || files->has_running_threads()) &&
+         idx-- > 0) {
     delay(50);
   }
   return 0;

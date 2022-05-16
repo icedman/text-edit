@@ -4,8 +4,6 @@
 #include <core/text-buffer.h>
 #include <pthread.h>
 
-#include "document.h"
-
 #define SEARCH_TTL 32
 
 Search::Search(std::u16string p, Point first_index)
