@@ -226,13 +226,13 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
     start = 0;
 
   // inefficient clear
-  idx = 0;
+  idx = view->computed.y;
   while (idx < editor->computed.h) {
     move(idx++, view->computed.x);
     draw_clear(view->computed.w);
   }
 
-  idx = 0;
+  idx = view->computed.y-1;
   for (int i = 0; i < vh * 2; i++) {
     if (idx > editor->computed.h)
       break;
@@ -666,6 +666,26 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   }
 }
 
+void draw_tabs(view_ptr view, editors_t& editors) {
+  move(view->computed.y, view->computed.x); // not accurate
+  clrtoeol();
+
+  int def = pair_for_color(cmt, false, true);
+  int sel = pair_for_color(fg, true, false);
+  char brackets[] = "[]";
+  char space[] = "  ";
+  char *borders = space;
+  for(auto e : editors.editors) {
+    int pair = e == editors.current_editor() ? sel : def;
+    borders = (pair == sel) ? brackets : space;
+    attron(COLOR_PAIR(pair));
+    addch(borders[0]);
+    addstr(e->doc->name.c_str());
+    addch(borders[1]);
+    attroff(COLOR_PAIR(pair));
+  }
+}
+
 bool get_dimensions() {
   static struct winsize ws;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
@@ -729,21 +749,28 @@ int main(int argc, char **argv) {
   main->add_child(explorer);
 
   view_ptr gutter = std::make_shared<view_t>();
-  main->add_child(gutter);
 
   view_ptr editor_views = std::make_shared<view_t>();
-  editor_views->flex = 3;
+  editor_views->flex = 1;
 
+  // the editors
   editors_t editors;
-  // editor_ptr editor = editors.add_editor(file_path);
-  // editors.add_editor("./src/document.cpp");
-  // for (auto e : editors.editors) {
-  //   e->flex = 1;
-  //   editor_views->add_child(e);
-  // }
   editor_ptr editor = open_document(file_path, editors, editor_views);
 
-  main->add_child(editor_views);
+  view_ptr tabs = std::make_shared<view_t>();
+  tabs->frame.h = 1;
+  view_ptr tabs_and_content = std::make_shared<column_t>();
+  tabs_and_content->flex = 3;
+  main->add_child(tabs_and_content);
+
+  view_ptr gutter_and_content = std::make_shared<row_t>();
+  gutter_and_content->flex = 1;
+  gutter_and_content->add_child(gutter);
+  gutter_and_content->add_child(editor_views);
+  editor_views->flex = 1;
+
+  tabs_and_content->add_child(tabs);
+  tabs_and_content->add_child(gutter_and_content);
 
   view_ptr sitter = std::make_shared<view_t>();
   main->add_child(sitter);
@@ -826,6 +853,7 @@ int main(int argc, char **argv) {
       pair_for_color(cmt, false, false)
       );
 
+    draw_tabs(tabs, editors);
     for (auto e : editors.editors) {
       draw_text_buffer(e);
       draw_gutter(e, gutter);
@@ -1022,6 +1050,7 @@ int main(int argc, char **argv) {
             }
           } else {
             open_document(item->full_path, editors, editor_views);
+            view_t::input_focus = editors.current_editor();
           }
           return true;
         };

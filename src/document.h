@@ -51,6 +51,7 @@ public:
   Document();
   ~Document();
 
+  std::string name;
   std::string file_path;
 
   TextBuffer buffer;

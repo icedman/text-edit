@@ -1,5 +1,6 @@
 #include "document.h"
 #include "utf8.h"
+#include "files.h"
 
 #include <algorithm>
 #include <core/encoding-conversion.h>
@@ -114,6 +115,7 @@ void Document::set_language(language_info_ptr lang) {
 
 bool Document::load(std::string path) {
   file_path = path;
+  name = base_name(path);
 
   std::ifstream t(path);
   std::stringstream buffer;

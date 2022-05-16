@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 
+std::string base_name(std::string path);
+std::string expanded_path(std::string path);
+
 class FileItem;
 typedef std::shared_ptr<FileItem> FileItemPtr;
 typedef std::vector<FileItemPtr> FileList;
