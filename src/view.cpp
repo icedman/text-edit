@@ -38,6 +38,43 @@ bool rects_equal(rect_t a, rect_t b) {
 
 view_ptr view_t::input_focus;
 
+void build_focusable_list(view_list &list, view_ptr node) {
+  if (!node->show)
+    return;
+  if (node->focusable) {
+    list.push_back(node);
+  }
+  for (auto c : node->children) {
+    build_focusable_list(list, c);
+  }
+}
+
+view_ptr view_t::find_next_focus(view_ptr root, view_ptr node, int x, int y) {
+  view_list focusables;
+  build_focusable_list(focusables, root);
+
+  for (auto v : focusables) {
+    point_t n = {node->computed.x + node->computed.w / 2,
+                 node->computed.y + node->computed.h / 2};
+    int l = x != 0 ? root->computed.w : root->computed.h;
+    if (x > 0) {
+      n.x += node->computed.w;
+    }
+    if (y > 0) {
+      n.y += node->computed.h;
+    }
+    for (int i = 0; i < l; i++) {
+      n.x += x;
+      n.y += y;
+      if (point_in_rect(n, v->computed)) {
+        return v;
+      }
+    }
+  }
+
+  return nullptr;
+}
+
 void view_t::layout(rect_t c) {
   constraint = c;
 

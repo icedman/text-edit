@@ -1,5 +1,6 @@
 #include "editor.h"
 #include "autocomplete.h"
+#include "files.h"
 #include "input.h"
 #include "keybindings.h"
 #include "textmate.h"
@@ -11,6 +12,7 @@
 editor_t::editor_t()
     : view_t(), request_treesitter(false), request_autocomplete(false),
       wrap(true), draw_tab_stops(false) {
+  focusable = true;
   doc = std::make_shared<Document>();
   doc->initialize(Document::empty());
 }
@@ -364,10 +366,16 @@ editors_t::editors_t() : selected(0) {}
 
 editor_ptr editors_t::add_editor(std::string path) {
   // find existing
+  std::string fp = expanded_path(path);
+  for (auto c : editors) {
+    if (c->doc->file_path == fp) {
+      return c;
+    }
+  }
 
   editor_ptr e = std::make_shared<editor_t>();
+  selected = editors.size();
   editors.push_back(e);
-  selected = editors.size() - 1;
 
   e->draw_tab_stops = true;
   e->request_treesitter = true;

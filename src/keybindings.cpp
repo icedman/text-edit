@@ -35,6 +35,11 @@ std::map<std::string, Command> commands = {
     {"shift+left", Command{"move_left", "anchored"}},
     {"shift+right", Command{"move_right", "anchored"}},
 
+    {"alt+up", Command{"focus_up", ""}},
+    {"alt+down", Command{"focus_down", ""}},
+    {"alt+left", Command{"focus_left", ""}},
+    {"alt+right", Command{"focus_right", ""}},
+
     {"insert", Command{"insert", ""}},
     {"ctrl+c", Command{"copy", ""}},
     {"ctrl+x", Command{"cut", ""}},

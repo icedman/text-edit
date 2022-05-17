@@ -188,6 +188,47 @@ theme_info_t Textmate::theme_info() {
   cmt.green *= 255;
   cmt.blue *= 255;
 
+
+  color_info_t fn;
+  if (current_theme()) {
+    // current_theme()->theme_color("comment", fn);
+    style_t style = current_theme()->styles_for_scope("entity.name.function");
+    fn = style.foreground;
+    if (fn.is_blank()) {
+      current_theme()->theme_color("editor.foreground", fn);
+    }
+    if (fn.is_blank()) {
+      rgba_t tc = theme_color_from_scope_fg_bg(_default, false);
+      fn.red = (float)tc.r / 255;
+      fn.green = (float)tc.g / 255;
+      fn.blue = (float)tc.b / 255;
+    }
+  }
+
+  fn.red *= 255;
+  fn.green *= 255;
+  fn.blue *= 255;
+
+  color_info_t kw;
+  if (current_theme()) {
+    // current_theme()->theme_color("comment", kw);
+    style_t style = current_theme()->styles_for_scope("keyword");
+    kw = style.foreground;
+    if (kw.is_blank()) {
+      current_theme()->theme_color("editor.foreground", kw);
+    }
+    if (kw.is_blank()) {
+      rgba_t tc = theme_color_from_scope_fg_bg(_default, false);
+      kw.red = (float)tc.r / 255;
+      kw.green = (float)tc.g / 255;
+      kw.blue = (float)tc.b / 255;
+    }
+  }
+
+  kw.red *= 255;
+  kw.green *= 255;
+  kw.blue *= 255;
+
   info.fg_r = fg.red;
   info.fg_g = fg.green;
   info.fg_b = fg.blue;
@@ -204,6 +245,14 @@ theme_info_t Textmate::theme_info() {
   info.cmt_g = cmt.green;
   info.cmt_b = cmt.blue;
   info.cmt_a = color_info_t::nearest_color_index(cmt.red, cmt.green, cmt.blue);
+  info.fn_r = fn.red;
+  info.fn_g = fn.green;
+  info.fn_b = fn.blue;
+  info.fn_a = color_info_t::nearest_color_index(fn.red, fn.green, fn.blue);
+  info.kw_r = kw.red;
+  info.kw_g = kw.green;
+  info.kw_b = kw.blue;
+  info.kw_a = color_info_t::nearest_color_index(kw.red, kw.green, kw.blue);
 
   // why does this happen?
   if (info.sel_r < 0 && info.sel_g < 0 && info.sel_b < 0) {

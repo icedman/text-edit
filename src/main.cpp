@@ -41,6 +41,8 @@ int bg = 0;
 int hl = 0;
 int sel = 0;
 int cmt = 0;
+int fn = 0;
+int kw = 0;
 int width = 0;
 int height = 0;
 
@@ -98,7 +100,10 @@ void update_colors() {
   }
   cmt = color_index(info.cmt_r, info.cmt_g, info.cmt_b);
   sel = color_index(info.sel_r, info.sel_g, info.sel_b);
+  fn = color_index(info.fn_r, info.fn_g, info.fn_b);
+  kw = color_index(info.kw_r, info.kw_g, info.kw_b);
   hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
+  // hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
 
   theme_ptr theme = Textmate::theme();
 
@@ -110,6 +115,8 @@ void update_colors() {
 
   theme->colorIndices[fg] = color_info_t({0, 0, 0, fg});
   theme->colorIndices[cmt] = color_info_t({0, 0, 0, cmt});
+  theme->colorIndices[fn] = color_info_t({0, 0, 0, fn});
+  theme->colorIndices[kw] = color_info_t({0, 0, 0, kw});
 
   int idx = 32;
 
@@ -232,16 +239,13 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
     draw_clear(view->computed.w);
   }
 
-  idx = view->computed.y-1;
+  idx = view->computed.y - 1;
   for (int i = 0; i < vh * 2; i++) {
-    if (idx > editor->computed.h)
-      break;
-
     int line = start + i;
     int computed_line = doc->computed_line(line);
     BlockPtr block = doc->block_at(computed_line);
     if (!block) {
-      move(idx++, view->computed.x);
+      move(++idx, view->computed.x);
       draw_clear(view->computed.w);
       continue;
     }
@@ -666,24 +670,70 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   }
 }
 
-void draw_tabs(view_ptr view, editors_t& editors) {
+void draw_tabs(menu_ptr view, editors_t &editors) {
   move(view->computed.y, view->computed.x); // not accurate
   clrtoeol();
 
-  int def = pair_for_color(cmt, false, true);
-  int sel = pair_for_color(fg, true, false);
+  int def = pair_for_color(cmt, false, false);
+  int sel = pair_for_color(fn, false, false);
+  int sel_border = pair_for_color(kw, false, false);
   char brackets[] = "[]";
   char space[] = "  ";
   char *borders = space;
-  for(auto e : editors.editors) {
-    int pair = e == editors.current_editor() ? sel : def;
-    borders = (pair == sel) ? brackets : space;
-    attron(COLOR_PAIR(pair));
-    addch(borders[0]);
-    addstr(e->doc->name.c_str());
-    addch(borders[1]);
-    attroff(COLOR_PAIR(pair));
+
+  std::string t;
+
+  int x1 = 0;
+  int x2 = 0;
+  int sx1 = 0;
+  int sx2 = 0;
+  view->items.clear();
+  for (auto e : editors.editors) {
+    borders = space;
+    if (e == editors.current_editor()) {
+      borders = brackets;
+    }
+    std::string n;
+    n = borders[0];
+    n += e->doc->name;
+    n += borders[1];
+    x1 = x2;
+    x2 += n.size();
+
+    if (e == editors.current_editor()) {
+      view->selected = view->items.size();
+      sx1 = x1;
+      sx2 = x2;
+    }
+    view->items.push_back({n, e->doc->name});
+    t += n;
   }
+
+  int s = 0;
+  if (t.size() > view->computed.w) {
+    s = sx1;
+    if (t.size() - s < view->computed.w) {
+      s = t.size() - view->computed.w;
+    }
+  }
+  t = t.substr(s, view->computed.w);
+  attron(COLOR_PAIR(def));
+  addstr(t.c_str());
+  attroff(COLOR_PAIR(def));
+
+  // selected
+  move(view->computed.y, view->computed.x + sx1 - s);
+  attron(COLOR_PAIR(sel_border));
+  addch(brackets[0]);
+  attroff(COLOR_PAIR(sel_border));
+  attron(COLOR_PAIR(def));
+  addstr(view->items[view->selected].value.c_str());
+  attroff(COLOR_PAIR(def));
+  attron(COLOR_PAIR(sel_border));
+  addch(brackets[1]);
+  attroff(COLOR_PAIR(sel_border));
+
+  view->cursor = {view->computed.x + sx1 - s, view->computed.y};
 }
 
 bool get_dimensions() {
@@ -710,7 +760,21 @@ void layout(view_ptr root) {
 editor_ptr open_document(std::string path, editors_t &editors, view_ptr view) {
   editor_ptr e = editors.add_editor(path);
   e->flex = 1;
+  // if (std::find(view->children.begin(), view->children.end(), e) ==
+  // view->children.end()) {
+  //   view->add_child(e);
+  // }
+  int idx = 0;
+  for (auto c : view->children) {
+    if (c == e) {
+      editors.selected = idx;
+      view_t::input_focus = editors.current_editor();
+      return e;
+    }
+    idx++;
+  }
   view->add_child(e);
+  view_t::input_focus = editors.current_editor();
   return e;
 }
 
@@ -746,6 +810,7 @@ int main(int argc, char **argv) {
 
   menu_ptr explorer = std::make_shared<menu_t>();
   explorer->frame.w = 22;
+  explorer->focusable = true;
   main->add_child(explorer);
 
   view_ptr gutter = std::make_shared<view_t>();
@@ -756,8 +821,16 @@ int main(int argc, char **argv) {
   // the editors
   editors_t editors;
   editor_ptr editor = open_document(file_path, editors, editor_views);
+  // for(int i=0; i<8; i++)
+  // open_document("./src/autocomplete.cpp", editors, editor_views);
 
-  view_ptr tabs = std::make_shared<view_t>();
+  tabs_ptr tabs = std::make_shared<tabs_t>();
+  tabs->on_change = [&editors](int selected) {
+    // printf(">>%d\n", selected);
+    editors.selected = selected;
+    return true;
+  };
+
   tabs->frame.h = 1;
   view_ptr tabs_and_content = std::make_shared<column_t>();
   tabs_and_content->flex = 3;
@@ -788,6 +861,24 @@ int main(int argc, char **argv) {
   std::vector<editor_ptr> input_popups = {gotoline->input, find->input,
                                           find->replace};
 
+  // callbacks
+  explorer->on_submit = [&files, &explorer, &editors, &editor_views](int idx) {
+    FileList &tree = files->tree();
+    FileItemPtr item = tree[idx];
+    if (item->is_directory) {
+      item->expanded = !item->expanded;
+      if (item->expanded) {
+        files->load(item->full_path);
+      } else {
+        files->rebuild_tree();
+        explorer->items.clear();
+      }
+    } else {
+      open_document(item->full_path, editors, editor_views);
+    }
+    return true;
+  };
+
   setlocale(LC_ALL, "");
 
   initscr();
@@ -813,8 +904,6 @@ int main(int argc, char **argv) {
   int warm_start = 3;
   int last_layout_size = -1;
   std::string last_key_sequence;
-
-  view_t::input_focus = editor;
 
   editor_ptr prev;
   bool running = true;
@@ -849,9 +938,8 @@ int main(int argc, char **argv) {
     }
 
     draw_menu(explorer, pair_for_color(cmt, false, false),
-      explorer->has_focus() ? pair_for_color(cmt, true, false) :
-      pair_for_color(cmt, false, false)
-      );
+              explorer->has_focus() ? pair_for_color(fn, false, true)
+                                    : pair_for_color(cmt, false, false));
 
     draw_tabs(tabs, editors);
     for (auto e : editors.editors) {
@@ -994,9 +1082,7 @@ int main(int argc, char **argv) {
 
     // blit
     move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
-    if (!explorer->has_focus()) {
-      curs_set(1);
-    }
+    curs_set(1);
     refresh();
 
     // input
@@ -1018,13 +1104,13 @@ int main(int argc, char **argv) {
         for (auto f : tree) {
           std::string n;
           int d = f->depth;
-          for (int i = 0; i < d*2; i++) {
+          for (int i = 0; i < d * 2; i++) {
             n += " ";
           }
 
           if (f->is_directory) {
             if (f->expanded) {
-              n += "- ";    
+              n += "- ";
             } else {
               n += "+ ";
             }
@@ -1035,25 +1121,6 @@ int main(int argc, char **argv) {
           n += f->name;
           explorer->items.push_back(menu_item_t{n, f->full_path});
         }
-
-        explorer->on_submit = [&files, &explorer, &editors,
-                               &editor_views](int idx) {
-          FileList &tree = files->tree();
-          FileItemPtr item = tree[idx];
-          if (item->is_directory) {
-            item->expanded = !item->expanded;
-            if (item->expanded) {
-              files->load(item->full_path);
-            } else {
-              files->rebuild_tree();
-              explorer->items.clear();
-            }
-          } else {
-            open_document(item->full_path, editors, editor_views);
-            view_t::input_focus = editors.current_editor();
-          }
-          return true;
-        };
         break;
       }
 
@@ -1125,7 +1192,7 @@ int main(int argc, char **argv) {
       }
     }
 
-    if (menu->show) {
+    if (view_t::input_focus == editor && menu->show) {
       if (menu->on_input(ch, key_sequence)) {
         continue;
       }
@@ -1161,22 +1228,16 @@ int main(int argc, char **argv) {
     }
 
     if (cmd.command == "toggle_explorer") {
-      if (!explorer->show && view_t::input_focus != explorer) {
+      if (!explorer->show) {
         explorer->show = true;
         view_t::input_focus = explorer;
         last_layout_size = -1;
         continue;
-      } else if (explorer->show && view_t::input_focus == explorer) {
+      } else if (explorer->show) {
         explorer->show = false;
         view_t::input_focus = editor;
         last_layout_size = -1;
         continue;
-      }
-
-      if (view_t::input_focus != explorer) {
-        view_t::input_focus = explorer;
-      } else {
-        view_t::input_focus = editor;
       }
     }
 
@@ -1185,6 +1246,31 @@ int main(int argc, char **argv) {
       if (idx < editors.editors.size()) {
         editors.selected = idx;
         view_t::input_focus = editors.current_editor();
+      }
+    }
+
+    if (cmd.command == "focus_left") {
+      view_ptr next = view_t::find_next_focus(root, view_t::input_focus, -1, 0);
+      if (next) {
+        view_t::input_focus = next;
+      }
+    }
+    if (cmd.command == "focus_right") {
+      view_ptr next = view_t::find_next_focus(root, view_t::input_focus, 1, 0);
+      if (next) {
+        view_t::input_focus = next;
+      }
+    }
+    if (cmd.command == "focus_up") {
+      view_ptr next = view_t::find_next_focus(root, view_t::input_focus, 0, -1);
+      if (next) {
+        view_t::input_focus = next;
+      }
+    }
+    if (cmd.command == "focus_down") {
+      view_ptr next = view_t::find_next_focus(root, view_t::input_focus, 0, 1);
+      if (next) {
+        view_t::input_focus = next;
       }
     }
 

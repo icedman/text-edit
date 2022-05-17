@@ -63,6 +63,14 @@ struct theme_info_t {
   int16_t cmt_g;
   int16_t cmt_b;
   int16_t cmt_a;
+  int16_t fn_r;
+  int16_t fn_g;
+  int16_t fn_b;
+  int16_t fn_a;
+  int16_t kw_r;
+  int16_t kw_g;
+  int16_t kw_b;
+  int16_t kw_a;
 };
 
 struct textstyle_t {

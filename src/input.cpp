@@ -76,6 +76,7 @@ static int readEscapeSequence(std::string &keySequence) {
 
   /* ESC [ sequences. */
   if (seq[0] == '[') {
+
     if (seq[1] >= '0' && seq[1] <= '9') {
 
       /* Extended escape, read additional byte. */
@@ -106,7 +107,10 @@ static int readEscapeSequence(std::string &keySequence) {
         if (!kbhit(wait)) {
           return K_ESC;
         }
+
         read(STDIN_FILENO, &seq[1], 1);
+
+        // printf(">%c %c\n", seq[0], seq[1]);
 
         sequence = "shift+";
         if (seq[0] == '2') {
@@ -130,6 +134,55 @@ static int readEscapeSequence(std::string &keySequence) {
           case 'F':
             keySequence = sequence + "end";
             return K_SHIFT_END;
+          }
+        }
+
+        sequence = "alt+";
+        if (seq[0] == '3') {
+          // printf("alt+%c\n", seq[1]);
+          switch (seq[1]) {
+          case 'A':
+            keySequence = sequence + "up";
+            return K_ALT_UP;
+          case 'B':
+            keySequence = sequence + "down";
+            return K_ALT_DOWN;
+          case 'C':
+            keySequence = sequence + "right";
+            return K_ALT_RIGHT;
+          case 'D':
+            keySequence = sequence + "left";
+            return K_ALT_LEFT;
+          case 'H':
+            keySequence = sequence + "home";
+            return K_ALT_HOME;
+          case 'F':
+            keySequence = sequence + "end";
+            return K_ALT_END;
+          }
+        }
+        sequence = "alt+shift+";
+        if (seq[0] == '4') {
+          // printf("alt+shift+%c\n", seq[1]);
+          switch (seq[1]) {
+          case 'A':
+            keySequence = sequence + "up";
+            return K_ALT_UP;
+          case 'B':
+            keySequence = sequence + "down";
+            return K_ALT_DOWN;
+          case 'C':
+            keySequence = sequence + "right";
+            return K_ALT_RIGHT;
+          case 'D':
+            keySequence = sequence + "left";
+            return K_ALT_LEFT;
+          case 'H':
+            keySequence = sequence + "home";
+            return K_ALT_HOME;
+          case 'F':
+            keySequence = sequence + "end";
+            return K_ALT_END;
           }
         }
 

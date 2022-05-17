@@ -1,6 +1,6 @@
 #include "document.h"
-#include "utf8.h"
 #include "files.h"
+#include "utf8.h"
 
 #include <algorithm>
 #include <core/encoding-conversion.h>

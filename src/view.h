@@ -31,7 +31,7 @@ struct view_t {
   view_t()
       : parent(nullptr), frame{0, 0, 0, 0}, constraint{0, 0, 0, 0},
         computed{0, 0, 0, 0}, scroll{0, 0}, cursor{0, 0}, flex(0), direction(0),
-        show(true) {}
+        show(true), focusable(false) {}
 
   rect_t frame;      // preferred
   rect_t constraint; // set by parent
@@ -42,6 +42,7 @@ struct view_t {
   int flex;
   int direction;
   bool show;
+  bool focusable;
 
   view_t *parent;
   view_list children;
@@ -81,6 +82,7 @@ struct view_t {
     return false;
   }
 
+  static view_ptr find_next_focus(view_ptr root, view_ptr node, int x, int y);
   static view_ptr input_focus;
 };
 

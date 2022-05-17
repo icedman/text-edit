@@ -19,6 +19,7 @@ struct menu_t : view_t {
 
   std::vector<menu_item_t> items;
 
+  std::function<bool(int)> on_change;
   std::function<bool(int)> on_submit;
   std::function<bool()> on_cancel;
 
@@ -26,5 +27,12 @@ struct menu_t : view_t {
 };
 
 typedef std::shared_ptr<menu_t> menu_ptr;
+
+struct tabs_t : menu_t {
+  tabs_t() : menu_t() { focusable = true; }
+  bool on_input(int ch, std::string key_sequence);
+};
+
+typedef std::shared_ptr<tabs_t> tabs_ptr;
 
 #endif // TE_MENU_H

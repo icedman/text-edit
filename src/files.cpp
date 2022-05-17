@@ -159,6 +159,46 @@ void Files::rebuild_tree() {
   build_files(_tree, root, 0, true);
 }
 
+void merge_files(FileItemPtr target, FileItemPtr payload, FileList &added_files,
+                 FileList &removed_files) {
+  for (auto c : payload->files) {
+    bool exists = false;
+    for (auto cc : target->files) {
+      if (c->full_path == cc->full_path) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      added_files.push_back(c);
+    }
+  }
+
+  for (auto c : target->files) {
+    bool exists = false;
+    for (auto cc : payload->files) {
+      if (c->full_path == cc->full_path) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      removed_files.push_back(c);
+    }
+  }
+
+  for (auto c : added_files) {
+    target->files.push_back(c);
+  }
+  for (auto c : removed_files) {
+    auto it = std::find(target->files.begin(), target->files.end(), c);
+    target->files.erase(it);
+  }
+
+  // sort
+  std::sort(target->files.begin(), target->files.end(), compare_files);
+}
+
 bool Files::update() {
   FileList files;
   build_files(files, root);
@@ -176,10 +216,8 @@ bool Files::update() {
       for (auto f : files) {
         if (f->is_directory) {
           if (f->full_path == r.first) {
-            f->files.clear(); // todo! compare...
-            for (auto c : item->files) {
-              f->files.push_back(c);
-            }
+            FileList added, removed;
+            merge_files(f, item, added, removed);
             item->state = FileItem::State::Consumed;
             did_update = true;
           }
