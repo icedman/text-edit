@@ -12,7 +12,8 @@
 #include <algorithm>
 #include <cstring>
 
-#define FILEITEM_TTL 32
+#define MAX_PRELOAD_DEPTH 4
+#define MAX_PRELOAD_THREADS 8
 
 std::string base_name(std::string path) {
   std::set<char> delims = {'\\', '/'};
@@ -44,8 +45,8 @@ static bool compare_files(FileItemPtr f1, FileItemPtr f2) {
 }
 
 FileItem::FileItem(std::string p)
-    : state(State::Consumed), ttl(FILEITEM_TTL), expanded(false),
-      is_directory(false), depth(0) {
+    : state(State::Consumed), expanded(false), is_directory(false), depth(0),
+      thread_id(0), preloaded(false) {
   set_path(p);
 }
 
@@ -62,14 +63,9 @@ void FileItem::set_ready() { state = FileItem::State::Ready; }
 
 void FileItem::set_consumed() { state = FileItem::State::Consumed; }
 
-void FileItem::keep_alive() { ttl = FILEITEM_TTL; }
+void FileItem::keep_alive() {}
 
-bool FileItem::is_disposable() {
-  if (state < FileItem::State::Ready) {
-    return false;
-  }
-  return --ttl <= 0;
-}
+bool FileItem::is_disposable() { return false; }
 
 void *filetem_thread(void *arg) {
   FileItem *item = (FileItem *)arg;
@@ -200,8 +196,9 @@ void merge_files(FileItemPtr target, FileItemPtr payload, FileList &added_files,
 }
 
 bool Files::update() {
-  FileList files;
-  build_files(files, root);
+  if (files.size() == 0) {
+    build_files(files, root);
+  }
 
   bool did_update = false;
   std::vector<std::string> disposables;
@@ -220,6 +217,7 @@ bool Files::update() {
             merge_files(f, item, added, removed);
             item->state = FileItem::State::Consumed;
             did_update = true;
+            f->preloaded = true;
           }
         }
       }
@@ -235,6 +233,20 @@ bool Files::update() {
     rebuild_tree();
   }
 
+  if (requests.size() < MAX_PRELOAD_THREADS) {
+    for (auto f : files) {
+      if (f->depth < MAX_PRELOAD_DEPTH) {
+        f->preloaded = true;
+      }
+      if (!f->preloaded && f->is_directory) {
+        load(f->full_path);
+      }
+    }
+  }
+
+  if (did_update) {
+    files.clear();
+  }
   return did_update;
 }
 

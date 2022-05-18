@@ -8,7 +8,7 @@ std::map<std::string, Command> commands = {
     {"escape", Command{"cancel", ""}},
     {"ctrl+q", Command{"quit", ""}},
     // {"ctrl+shift+f", Command{"search_text_in_files", ""}},
-    // {"ctrl+p",       Command{"search_files", ""}},
+    {"ctrl+p", Command{"search_files", ""}},
     {"ctrl+f", Command{"search_text", ""}},
     {"ctrl+r", Command{"search_and_replace", ""}},
     {"ctrl+g", Command{"jump_to_line", ""}},
@@ -52,6 +52,7 @@ std::map<std::string, Command> commands = {
     {"ctrl+shift+down", Command{"duplicate_line", ""}},
 
     {"ctrl+s", Command{"save", ""}},
+    {"alt+s", Command{"save_as", ""}},
     {"ctrl+w", Command{"close", ""}},
     {"alt+1", Command{"switch_tab", "0"}},
     {"alt+2", Command{"switch_tab", "1"}},
@@ -72,13 +73,15 @@ std::map<std::string, Command> commands = {
     {"ctrl+k+ctrl+o", Command{"unindent", ""}},
     {"ctrl+k+ctrl+j", Command{"toggle_block_fold", ""}},
     {"ctrl+/", Command{"toggle_comment", ""}},
-    {"ctrl+`", Command{"toggle_explorer", ""}},
+    // {"ctrl+`", Command{"toggle_console", ""}},
 
     {"ctrl+t", Command{"await", ""}},
-    {"ctrl+t+ctrl+t", Command{"toggle_tree_sitter", ""}},
+    {"ctrl+t+ctrl+r", Command{"toggle_tree_sitter", ""}},
     {"ctrl+t+ctrl+g", Command{"toggle_gutter", ""}},
     {"ctrl+t+ctrl+s", Command{"toggle_statusbar", ""}},
-    {"ctrl+t+ctrl+w", Command{"toggle_wrap", ""}}
+    {"ctrl+t+ctrl+w", Command{"toggle_wrap", ""}},
+    {"ctrl+t+ctrl+e", Command{"toggle_explorer", ""}},
+    {"ctrl+t+ctrl+b", Command{"toggle_tabs", ""}}
 
 };
 

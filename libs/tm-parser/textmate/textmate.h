@@ -2,6 +2,7 @@
 #define TEXTMATE_H
 
 #include "theme.h"
+#include "parse.h"
 #include <string>
 #include <vector>
 
@@ -84,6 +85,7 @@ struct textstyle_t {
   int16_t bg_r;
   int16_t bg_g;
   int16_t bg_b;
+  int16_t bg_a;
   int16_t caret;
   bool bold;
   bool italic;

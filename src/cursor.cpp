@@ -10,6 +10,21 @@ bool compare_range(Range a, Range b) {
   return a.start.column < b.start.column;
 }
 
+optional<Range> intersect_row(Range range, int row, int length) {
+  optional<Range> res;
+  if (range.start.row > row || range.end.row < row)
+    return res;
+  int start = 0;
+  int end = length;
+  if (range.start.row == row) {
+    start = range.start.column;
+  }
+  if (range.end.row == row) {
+    end = range.end.column;
+  }
+  return Range{{row, start}, {row, end}};
+}
+
 int count_indent_size(std::string text) {
   int sz = 0;
   for (int i = 0; i < text.length(); i++) {

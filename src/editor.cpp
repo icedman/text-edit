@@ -388,9 +388,22 @@ editor_ptr editors_t::add_editor(std::string path) {
 }
 
 editor_ptr editors_t::current_editor() {
+  if (!editors.size()) {
+    return nullptr;
+  }
   for (auto e : editors) {
     e->show = false;
   }
   editors[selected]->show = true;
   return editors[selected];
+}
+
+void editors_t::close_current_editor() {
+  auto it = std::find(editors.begin(), editors.end(), current_editor());
+  if (it != editors.end()) {
+    editors.erase(it);
+  }
+  if (selected >= editors.size()) {
+    selected = editors.size() - 1;
+  }
 }

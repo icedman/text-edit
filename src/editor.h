@@ -43,6 +43,7 @@ struct editors_t {
   editors_t();
   editor_ptr add_editor(std::string path);
   editor_ptr current_editor();
+  void close_current_editor();
 };
 
 #endif // TE_EDITOR_H

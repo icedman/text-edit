@@ -31,20 +31,24 @@
 #include "ui.h"
 #include "view.h"
 
+#include "render.h"
+
 // symbols
 const wchar_t *symbol_tab = L"\u2847";
 
 // theme
-bool use_system_colors = true;
-int fg = 0;
-int bg = 0;
-int hl = 0;
-int sel = 0;
-int cmt = 0;
-int fn = 0;
-int kw = 0;
+extern bool use_system_colors;
+extern int fg;
+extern int bg;
+extern int hl;
+extern int sel;
+extern int cmt;
+extern int fn;
+extern int kw;
+
 int width = 0;
 int height = 0;
+int last_layout_hash = -1;
 
 #define TIMER_BEGIN                                                            \
   clock_t start, end;                                                          \
@@ -57,142 +61,12 @@ int height = 0;
   end = clock();                                                               \
   cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
 
-#define SELECTED_OFFSET 500
-#define HIGHLIGHT_OFFSET 1000
-
-enum color_pair_e { NORMAL = 0, SELECTED, COMMENT };
-static std::map<int, int> colorMap;
-
 void delay(int ms) {
   struct timespec waittime;
   waittime.tv_sec = (ms / 1000);
   ms = ms % 1000;
   waittime.tv_nsec = ms * 1000 * 1000;
   nanosleep(&waittime, NULL);
-}
-
-int color_index(int r, int g, int b) {
-  return color_info_t::nearest_color_index(r, g, b);
-}
-
-int pair_for_color(int colorIdx, bool selected = false,
-                   bool highlighted = false) {
-  if (selected && colorIdx == color_pair_e::NORMAL) {
-    return color_pair_e::SELECTED;
-  }
-  int offset =
-      selected ? SELECTED_OFFSET : (highlighted ? HIGHLIGHT_OFFSET : 0);
-  return colorMap[colorIdx + offset];
-}
-
-void update_colors() {
-  colorMap.clear();
-
-  theme_info_t info = Textmate::theme_info();
-
-  if (use_system_colors) {
-    fg = -1; // info.fg_a;
-    bg = -1; // info.bg_a;
-  } else {
-    fg = info.fg_a;
-    bg = COLOR_BLACK; // info.bg_a; // color_index(info.bg_r, info.bg_g,
-                      // info.bg_b);
-  }
-  cmt = color_index(info.cmt_r, info.cmt_g, info.cmt_b);
-  sel = color_index(info.sel_r, info.sel_g, info.sel_b);
-  fn = color_index(info.fn_r, info.fn_g, info.fn_b);
-  kw = color_index(info.kw_r, info.kw_g, info.kw_b);
-  hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
-  // hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
-
-  theme_ptr theme = Textmate::theme();
-
-  //---------------
-  // build the color pairs
-  //---------------
-  init_pair(color_pair_e::NORMAL, fg, bg);
-  init_pair(color_pair_e::SELECTED, fg, sel);
-
-  theme->colorIndices[fg] = color_info_t({0, 0, 0, fg});
-  theme->colorIndices[cmt] = color_info_t({0, 0, 0, cmt});
-  theme->colorIndices[fn] = color_info_t({0, 0, 0, fn});
-  theme->colorIndices[kw] = color_info_t({0, 0, 0, kw});
-
-  int idx = 32;
-
-  auto it = theme->colorIndices.begin();
-  while (it != theme->colorIndices.end()) {
-    colorMap[it->first] = idx;
-    init_pair(idx++, it->first, bg);
-    it++;
-  }
-
-  it = theme->colorIndices.begin();
-  while (it != theme->colorIndices.end()) {
-    colorMap[it->first + SELECTED_OFFSET] = idx;
-    init_pair(idx++, it->first, sel);
-    if (it->first == sel) {
-      colorMap[it->first + SELECTED_OFFSET] = idx + 1;
-    }
-    it++;
-  }
-
-  it = theme->colorIndices.begin();
-  while (it != theme->colorIndices.end()) {
-    colorMap[it->first + HIGHLIGHT_OFFSET] = idx;
-    init_pair(idx++, it->first, hl);
-    if (it->first == sel) {
-      colorMap[it->first + HIGHLIGHT_OFFSET] = idx + 1;
-    }
-    it++;
-  }
-}
-
-void draw_clear(int w) {
-  for (int i = 0; i < w; i++) {
-    addch(' ');
-  }
-}
-
-void draw_text(rect_t rect, const char *text, int align = 1, int margin = 0,
-               int color = -1) {
-  int off = 0;
-  switch (align) {
-  case 0:
-    // center
-    off = rect.w / 2 - strlen(text) / 2;
-    break;
-  case -1:
-    // left
-    off = margin;
-    break;
-  case 1:
-    // right
-    off = rect.w - strlen(text) - margin;
-    break;
-  }
-
-  int screen_col = rect.x + off;
-  int screen_row = rect.y;
-
-  int pair = color != -1 ? color : pair_for_color(cmt);
-  attron(COLOR_PAIR(pair));
-
-  move(screen_row, rect.x);
-  for (int i = 0; i < rect.w; i++) {
-    addch(' ');
-  }
-  move(screen_row, screen_col);
-  addstr(text);
-
-  attroff(COLOR_PAIR(pair));
-}
-
-void draw_text(view_ptr view, const char *text, int align = 1, int margin = 0,
-               int color = -1) {
-  if (!view->show)
-    return;
-  draw_text(view->computed, text, align, margin);
 }
 
 void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
@@ -216,15 +90,19 @@ void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
 }
 
 void draw_gutter(editor_ptr editor, view_ptr view) {
-  if (!view->show || !editor->show)
+  if (!editor->show || !view->show)
     return;
 
-  int scroll_y = editor->scroll.y;
   DocumentPtr doc = editor->doc;
+  TextBuffer &text = doc->buffer;
 
-  int vh = view->computed.h;
+  int scroll_x = editor->scroll.x;
+  int scroll_y = editor->scroll.y;
+  int vh = editor->computed.h;
   int view_start = scroll_y;
   int view_end = scroll_y + vh;
+
+  int offset_y = 0;
 
   // highlight
   int idx = 0;
@@ -232,34 +110,31 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
   if (start < 0)
     start = 0;
 
-  // inefficient clear
-  idx = view->computed.y;
-  while (idx < editor->computed.h) {
-    move(idx++, view->computed.x);
-    draw_clear(view->computed.w);
-  }
-
-  idx = view->computed.y - 1;
   for (int i = 0; i < vh * 2; i++) {
+    if (idx + offset_y > editor->computed.h)
+      break;
+
     int line = start + i;
     int computed_line = doc->computed_line(line);
+
     BlockPtr block = doc->block_at(computed_line);
     if (!block) {
-      move(++idx, view->computed.x);
-      draw_clear(view->computed.w);
-      continue;
+      // ERROR!
+      break;
     }
 
     if (line >= view_start && line < view_end) {
       std::stringstream s;
       s << (computed_line + 1);
-      draw_gutter_line(editor, view, idx, computed_line, s.str().c_str(),
-                       block->styles);
-      idx++;
-      for (int j = 1; j < block->line_height; j++) {
-        idx++;
-        //   move(idx++, view->computed.x);
-        //   draw_clear(view->computed.w);
+      draw_gutter_line(editor, view, (idx++) + offset_y, computed_line,
+                       s.str().c_str(), block->styles);
+
+      if (block->line_height > 1) {
+        offset_y += (block->line_height - 1);
+        for (int j = 0; j < block->line_height - 1; j++) {
+          move(offset_y + idx + j, view->computed.x);
+          draw_clear(view->computed.w);
+        }
       }
     }
   }
@@ -274,7 +149,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
 
   DocumentPtr doc = editor->doc;
   optional<Cursor> block_cursor = doc->block_cursor(doc->cursor());
-  optional<Bracket> bracket_cursor = doc->bracket_cursor(doc->cursor());
+  // optional<Bracket> bracket_cursor = doc->bracket_cursor(doc->cursor());
   SearchPtr search = doc->search();
 
   screen_row += editor->computed.y;
@@ -382,12 +257,12 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     }
 
     // decorate brackets
-    if (bracket_cursor) {
-      Range r = (*bracket_cursor).range;
-      if (r.start.column == i && r.start.row == row) {
-        underline = true;
-      }
-    }
+    // if (bracket_cursor) {
+    //   Range r = (*bracket_cursor).range;
+    //   if (r.start.column == i && r.start.row == row) {
+    //     underline = true;
+    //   }
+    // }
 
     if (underline) {
       attron(A_UNDERLINE);
@@ -455,6 +330,9 @@ void draw_text_buffer(editor_ptr editor) {
 
   DocumentPtr doc = editor->doc;
   TextBuffer &text = doc->buffer;
+  SearchPtr search = doc->search();
+  // optional<Bracket> bracket_cursor = doc->bracket_cursor(doc->cursor());
+  optional<Cursor> block_cursor = doc->block_cursor(doc->cursor());
 
   int scroll_x = editor->scroll.x;
   int scroll_y = editor->scroll.y;
@@ -501,15 +379,15 @@ void draw_text_buffer(editor_ptr editor) {
               doc->next_block(block).get());
 
           // find brackets
-          block->brackets.clear();
-          for (auto s : block->styles) {
-            if (s.flags & SCOPE_BRACKET) {
-              block->brackets.push_back(
-                  Bracket{{{computed_line, s.start},
-                           {computed_line, s.start + s.length}},
-                          s.flags});
-            }
-          }
+          // block->brackets.clear();
+          // for (auto s : block->styles) {
+          //   if (s.flags & SCOPE_BRACKET) {
+          //     block->brackets.push_back(
+          //         Bracket{{{computed_line, s.start},
+          //                  {computed_line, s.start + s.length}},
+          //                 s.flags});
+          //   }
+          // }
 
           // std::sort(block->brackets.begin(), block->brackets.end(),
           // compare_brackets);
@@ -518,8 +396,119 @@ void draw_text_buffer(editor_ptr editor) {
       }
 
       int line_height = 1;
-      draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
-                     block, &line_height);
+
+#if 0
+      draw_text_line(editor, (idx++) + offset_y, computed_line,
+        s.str().c_str(), block, &line_height);
+#else
+      int l = s.str().size();
+
+      std::vector<textstyle_t> extra;
+
+      // decorate search result
+      if (search) {
+        for (auto r : search->matches) {
+          optional<Range> res = intersect_row(r, computed_line, l);
+          if (res) {
+            textstyle_t style = {
+                (*res).start.column,
+                (*res).end.column - (*res).start.column,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+                false,
+                true,
+                false,
+            };
+            extra.push_back(style);
+          }
+        }
+      }
+
+      // selected
+      if (block_cursor) {
+        Cursor c = (*block_cursor).normalized();
+        if (c.end.column > 0) {
+          if (c.start.row == computed_line) {
+            textstyle_t style = {
+                c.start.column, 1,     0,     0,     0, 0, 0, 0, 0, 0, cmt, 0,
+                false,          false, false, false,
+            };
+            extra.push_back(style);
+          }
+          if (c.end.row == computed_line) {
+            textstyle_t style = {
+                c.end.column - 1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                cmt,
+                0,
+                false,
+                false,
+                false,
+                false,
+            };
+            extra.push_back(style);
+          }
+        }
+      }
+
+      // cursors
+      for (auto c : doc->cursors) {
+        if (c.start.row == computed_line) {
+          textstyle_t style = {
+              c.start.column,      1,     0,     0,     0,     0, 0, 0, 0, 0, 0,
+              editor->has_focus(), false, false, false, false,
+          };
+          extra.push_back(style);
+        }
+
+        // selected
+        Cursor cc = c.normalized();
+        optional<Range> res = intersect_row(cc, computed_line, l);
+        if (res) {
+          textstyle_t style = {
+              (*res).start.column,
+              (*res).end.column - (*res).start.column,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              sel,
+              0,
+              false,
+              false,
+              false,
+              false,
+          };
+          extra.push_back(style);
+        }
+      }
+
+      draw_styled_text(editor, s.str().c_str(), (idx++) + offset_y, 0,
+                       block->styles, &extra, editor->wrap, &line_height);
+#endif
+      block->line_height = line_height;
+
       if (line_height > 1) {
         offset_y += (line_height - 1);
       }
@@ -530,64 +519,6 @@ void draw_text_buffer(editor_ptr editor) {
     move(editor->computed.y + i, editor->computed.x);
     // addch('~')
     clrtoeol();
-  }
-}
-
-void draw_status(status_line_t *status) {
-  if (!status->show)
-    return;
-  int sel = pair_for_color(fg, true, false);
-  for (auto placeholder : status->items) {
-    status_item_ptr item = placeholder.second;
-    if (!item->show)
-      continue;
-    int pair = item->color ? item->color : sel;
-    draw_text({item->computed.x, item->computed.y, item->computed.w,
-               item->computed.h},
-              item->text.c_str(), item->align, 0, pair);
-  }
-}
-
-void draw_menu(menu_ptr menu, int color = 0, int selected_color = 0) {
-  if (!menu->show || !menu->items.size())
-    return;
-
-  int row = 0;
-  int def = color ? color : pair_for_color(cmt, false, true);
-  int sel = selected_color ? selected_color : pair_for_color(fg, true, false);
-
-  int margin = 1;
-  int w = menu->computed.w;
-  int h = menu->computed.h;
-  int screen_row = menu->computed.y;
-  int screen_col = menu->computed.x;
-  int start = menu->scroll.y;
-  int offset_row = 0;
-
-  // printf("%d %d %d %d\n", w, h, screen_row, screen_col);
-
-  for (int i = start; i < menu->items.size(); i++) {
-    auto m = menu->items[i];
-    int pair = menu->selected == i ? sel : def;
-    int sc = screen_row + row++;
-    if (menu->selected == i) {
-      menu->cursor.y = sc + offset_row;
-    }
-    std::string text = m.name.substr(0, w - 1);
-    attron(COLOR_PAIR(pair));
-    move(sc + offset_row, screen_col);
-    draw_clear(w);
-    move(sc + offset_row, screen_col + margin);
-    addstr(text.c_str());
-    attroff(COLOR_PAIR(pair));
-    if (row > h)
-      break;
-  }
-
-  for (int i = row; i < h; i++) {
-    int sc = screen_row + row++;
-    move(sc + offset_row, screen_col);
-    draw_clear(w);
   }
 }
 
@@ -675,8 +606,10 @@ void draw_tabs(menu_ptr view, editors_t &editors) {
   clrtoeol();
 
   int def = pair_for_color(cmt, false, false);
-  int sel = pair_for_color(fn, false, false);
-  int sel_border = pair_for_color(kw, false, false);
+  int sel =
+      pair_for_color(view->has_focus() ? fn : cmt, false, view->has_focus());
+  int sel_border = pair_for_color(kw, false, view->has_focus());
+
   char brackets[] = "[]";
   char space[] = "  ";
   char *borders = space;
@@ -693,6 +626,11 @@ void draw_tabs(menu_ptr view, editors_t &editors) {
     if (e == editors.current_editor()) {
       borders = brackets;
     }
+
+    if (e->doc->name == "") {
+      e->doc->name = "untitled";
+    }
+
     std::string n;
     n = borders[0];
     n += e->doc->name;
@@ -716,24 +654,32 @@ void draw_tabs(menu_ptr view, editors_t &editors) {
       s = t.size() - view->computed.w;
     }
   }
+
   t = t.substr(s, view->computed.w);
+
+  int center = 0;
+  if (view->computed.w > t.size()) {
+    center = (view->computed.w / 2) - (t.size() / 2);
+    move(view->computed.y, view->computed.x + center);
+  }
+
   attron(COLOR_PAIR(def));
   addstr(t.c_str());
   attroff(COLOR_PAIR(def));
 
   // selected
-  move(view->computed.y, view->computed.x + sx1 - s);
+  move(view->computed.y, view->computed.x + sx1 - s + center);
   attron(COLOR_PAIR(sel_border));
   addch(brackets[0]);
   attroff(COLOR_PAIR(sel_border));
-  attron(COLOR_PAIR(def));
+  attron(COLOR_PAIR(sel));
   addstr(view->items[view->selected].value.c_str());
-  attroff(COLOR_PAIR(def));
+  attroff(COLOR_PAIR(sel));
   attron(COLOR_PAIR(sel_border));
   addch(brackets[1]);
   attroff(COLOR_PAIR(sel_border));
 
-  view->cursor = {view->computed.x + sx1 - s, view->computed.y};
+  view->cursor = {view->computed.x + sx1 - s + center, view->computed.y};
 }
 
 bool get_dimensions() {
@@ -757,13 +703,11 @@ void layout(view_ptr root) {
   root->finalize();
 }
 
+void relayout() { last_layout_hash = -1; }
+
 editor_ptr open_document(std::string path, editors_t &editors, view_ptr view) {
   editor_ptr e = editors.add_editor(path);
   e->flex = 1;
-  // if (std::find(view->children.begin(), view->children.end(), e) ==
-  // view->children.end()) {
-  //   view->add_child(e);
-  // }
   int idx = 0;
   for (auto c : view->children) {
     if (c == e) {
@@ -778,25 +722,43 @@ editor_ptr open_document(std::string path, editors_t &editors, view_ptr view) {
   return e;
 }
 
+void close_current_editor(editors_t &editors, view_ptr view) {
+  auto it = std::find(view->children.begin(), view->children.end(),
+                      editors.current_editor());
+  if (it != view->children.end()) {
+    view->children.erase(it);
+  }
+  editors.close_current_editor();
+  view_t::input_focus = editors.current_editor();
+}
+
 int main(int argc, char **argv) {
-  std::string file_path = "./src/main.cpp";
+  int last_arg = 0;
+  std::string file_path;
   if (argc > 1) {
-    file_path = argv[argc - 1];
+    last_arg = argc - 1;
   }
 
   const char *defaultTheme = "Monokai";
   const char *argTheme = defaultTheme;
   for (int i = 0; i < argc - 1; i++) {
     if (strcmp(argv[i], "-t") == 0) {
+      if (last_arg == i + 1) {
+        last_arg = 0;
+      }
       argTheme = argv[i + 1];
     }
   }
+
+  if (last_arg != 0) {
+    file_path = argv[last_arg];
+  }
+
   Textmate::initialize("/home/iceman/.editor/extensions/");
   Textmate::load_theme(argTheme);
   theme_info_t info = Textmate::theme_info();
 
   FilesPtr files = std::make_shared<Files>();
-  files->set_root_path("./");
   // files->load("./libs/tree-sitter-grammars");
   // files->load("./libs");
 
@@ -821,6 +783,9 @@ int main(int argc, char **argv) {
   // the editors
   editors_t editors;
   editor_ptr editor = open_document(file_path, editors, editor_views);
+  files->set_root_path(
+      directory_path(editor->doc->file_path, editor->doc->name));
+
   // for(int i=0; i<8; i++)
   // open_document("./src/autocomplete.cpp", editors, editor_views);
 
@@ -879,6 +844,8 @@ int main(int argc, char **argv) {
     return true;
   };
 
+  explorer->show = files->root->name.size() > 0;
+
   setlocale(LC_ALL, "");
 
   initscr();
@@ -902,12 +869,14 @@ int main(int argc, char **argv) {
   message << "Welcome to text-edit";
 
   int warm_start = 3;
-  int last_layout_size = -1;
   std::string last_key_sequence;
 
   editor_ptr prev;
   bool running = true;
   while (running) {
+    if (!editors.editors.size())
+      break;
+
     if (prev != editors.current_editor()) {
       editor = editors.current_editor();
       layout(root);
@@ -922,21 +891,22 @@ int main(int argc, char **argv) {
       bool has_children_focus = i->parent->has_children_focus();
       if (has_children_focus != i->parent->show) {
         i->parent->show = has_children_focus;
-        last_layout_size = -1;
+        relayout();
       }
       has_input = has_input | i->has_focus();
     }
     // status->show = !has_input;
 
-    if (last_layout_size != size) {
+    if (last_layout_hash != size) {
       std::stringstream s;
       s << "  ";
       s << size;
       gutter->frame.w = s.str().size();
       layout(root);
-      last_layout_size = size;
+      last_layout_hash = size;
     }
 
+    // explorer
     draw_menu(explorer, pair_for_color(cmt, false, false),
               explorer->has_focus() ? pair_for_color(fn, false, true)
                                     : pair_for_color(cmt, false, false));
@@ -961,6 +931,22 @@ int main(int argc, char **argv) {
       }
     }
 
+    if (find->show) {
+      find->items["title"]->color = find->input->has_focus()
+                                        ? pair_for_color(fn, false, false)
+                                        : pair_for_color(cmt, false, false);
+      find->items["replace"]->color = find->replace->has_focus()
+                                          ? pair_for_color(fn, false, false)
+                                          : pair_for_color(cmt, false, false);
+    }
+
+    if (gotoline->show) {
+      gotoline->items["title"]->color = gotoline->input->has_focus()
+                                            ? pair_for_color(fn, false, false)
+                                            : pair_for_color(cmt, false, false);
+    }
+
+    // other inputs
     for (auto input : input_popups) {
       if (!input->parent->show) {
         continue;
@@ -972,9 +958,7 @@ int main(int argc, char **argv) {
     Cursor cursor = doc->cursor();
 
     // status
-
     if (status->show) {
-
       std::stringstream ss;
       if (doc->insert_mode) {
         ss << "INS   ";
@@ -1010,9 +994,15 @@ int main(int argc, char **argv) {
       draw_status(status.get());
     }
 
+    // tree sitter
+    TreeSitterPtr treesitter = doc->treesitter();
+    if (treesitter) {
+      draw_tree_sitter(editor, sitter, treesitter, doc->cursor());
+    }
+
+    // auto complete menu
     menu->show = false;
     menu->items.clear();
-
     AutoCompletePtr autocomplete = doc->autocomplete();
     if (!menu->show && autocomplete) {
       int margin = 1;
@@ -1072,18 +1062,12 @@ int main(int argc, char **argv) {
 
       menu->show = (menu->items.size() > 0);
     }
-
     draw_menu(menu);
-
-    TreeSitterPtr treesitter = doc->treesitter();
-    if (treesitter) {
-      draw_tree_sitter(editor, sitter, treesitter, doc->cursor());
-    }
 
     // blit
     move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
-    curs_set(1);
     refresh();
+    // curs_set(1);
 
     // input
     int ch = -1;
@@ -1139,6 +1123,7 @@ int main(int argc, char **argv) {
       if (frames > 2000) {
         frames = 0;
         idle++;
+        curs_set(1);
         if (Textmate::has_running_threads() || (warm_start-- > 0)) {
           editor->doc->make_dirty();
           break;
@@ -1171,24 +1156,29 @@ int main(int argc, char **argv) {
         continue;
       }
     }
+
     if (search) {
       if (key_sequence == "up") {
-        if (search->selected > 0) {
-          search->selected--;
-        }
+        search->selected--;
       }
       if (key_sequence == "down") {
-        if (search->selected + 1 < search->matches.size()) {
-          search->selected++;
-        }
+        search->selected++;
       }
-      Range range = search->matches[search->selected];
-      Cursor &cursor = doc->cursor();
-      if (range != cursor) {
-        cursor.start = range.start;
-        cursor.end = range.end;
-        editor->on_input(-1, ""); // ping
-        continue;
+      if (search->selected < 0) {
+        search->selected = 0;
+      }
+      if (search->selected >= search->matches.size()) {
+        search->selected = search->matches.size() - 1;
+      }
+      if (search->selected < search->matches.size()) {
+        Range range = search->matches[search->selected];
+        Cursor &cursor = doc->cursor();
+        if (range != cursor) {
+          cursor.start = range.start;
+          cursor.end = range.end;
+          editor->on_input(-1, ""); // ping
+          continue;
+        }
       }
     }
 
@@ -1229,14 +1219,29 @@ int main(int argc, char **argv) {
 
     if (cmd.command == "toggle_explorer") {
       if (!explorer->show) {
-        explorer->show = true;
-        view_t::input_focus = explorer;
-        last_layout_size = -1;
+        explorer->show = (explorer->show = files->root->name.size() > 0);
+        if (explorer->show) {
+          view_t::input_focus = explorer;
+          relayout();
+        }
         continue;
       } else if (explorer->show) {
         explorer->show = false;
         view_t::input_focus = editor;
-        last_layout_size = -1;
+        relayout();
+        continue;
+      }
+    }
+    if (cmd.command == "toggle_tabs") {
+      if (!tabs->show) {
+        tabs->show = true;
+        view_t::input_focus = tabs;
+        relayout();
+        continue;
+      } else if (tabs->show) {
+        tabs->show = false;
+        view_t::input_focus = editor;
+        relayout();
         continue;
       }
     }
@@ -1280,6 +1285,7 @@ int main(int argc, char **argv) {
       find->enable_replace = cmd.command == "search_and_replace";
       find->input->cursor = {0, 0};
       find->input->on_submit = [&editor, &find](std::u16string value) {
+        editor->doc->clear_cursors();
         editor->doc->run_search(value, editor->doc->cursor().start);
         return true;
       };
@@ -1304,6 +1310,7 @@ int main(int argc, char **argv) {
       if (find->enable_replace && search && search->matches.size()) {
         view_t::input_focus = find->replace;
       }
+      relayout();
     }
     if (cmd.command == "jump_to_line") {
       view_t::input_focus = gotoline->input;
@@ -1319,6 +1326,7 @@ int main(int argc, char **argv) {
         }
         return true;
       };
+      relayout();
     }
 
     if (cmd.command == "cancel") {
@@ -1346,7 +1354,7 @@ int main(int argc, char **argv) {
       running = false;
     }
     if (cmd.command == "close") {
-      running = false;
+      close_current_editor(editors, editor_views);
     }
   }
 

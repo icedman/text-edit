@@ -1,6 +1,7 @@
 #ifndef TE_CURSOR_H
 #define TE_CURSOR_H
 
+#include <core/optional.h>
 #include <core/text-buffer.h>
 #include <string>
 
@@ -8,6 +9,7 @@ bool is_point_within_range(Point p, Range r);
 bool compare_range(Range a, Range b);
 int count_indent_size(std::string text);
 int count_indent_size(std::u16string text);
+optional<Range> intersect_row(Range range, int row, int length);
 
 class Document;
 class Cursor : public Range {

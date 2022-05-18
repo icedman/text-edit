@@ -21,7 +21,7 @@ inline bool color_is_set(rgba_t clr) {
 
 inline textstyle_t construct_style(std::vector<span_info_t> &spans, int index) {
   textstyle_t res = {
-      index, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, false,
+      index, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, false,
   };
 
   int32_t start;

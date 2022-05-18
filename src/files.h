@@ -8,6 +8,7 @@
 
 std::string base_name(std::string path);
 std::string expanded_path(std::string path);
+std::string directory_path(std::string path, std::string name);
 
 class FileItem;
 typedef std::shared_ptr<FileItem> FileItemPtr;
@@ -31,8 +32,8 @@ public:
 
   FileList files;
 
-  int ttl;
   int thread_id;
+  bool preloaded;
 
   void set_path(std::string path);
 
@@ -48,6 +49,7 @@ public:
   Files();
 
   FileItemPtr root;
+  FileList files;
   std::map<std::string, FileItemPtr> requests;
 
   void build_files(FileList &list, FileItemPtr node, int depth = 0,
