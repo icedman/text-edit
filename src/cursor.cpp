@@ -175,9 +175,6 @@ void Cursor::move_to_start_of_document(bool anchor) {
 
 void Cursor::move_to_end_of_document(bool anchor) {
   start = buffer->extent();
-  if (start.row > 0) {
-    start.row--;
-  }
   move_to_end_of_line(anchor);
   if (!anchor) {
     end = start;
@@ -346,7 +343,7 @@ void Cursor::insert_text(std::u16string text) {
     r = size_diff;
   }
   // document->cursor_markers.splice(range.start, {0, 0}, {r, text.size()});
-  document->update_markers(range.start, {0, 0}, {r, text.size()});
+  document->update_markers(range.start, {0, range.end.column - range.start.column}, {r, text.size()});
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
   for (int i = 0; i < text.size(); i++) {
@@ -358,6 +355,9 @@ void Cursor::insert_text(std::u16string text) {
 }
 
 void Cursor::delete_text(int number_of_characters) {
+  if (has_selection()) {
+    number_of_characters = 1;
+  }
   for (int i = 0; i < number_of_characters; i++) {
     if (!has_selection()) {
       move_right(true);
@@ -365,6 +365,9 @@ void Cursor::delete_text(int number_of_characters) {
     Range range = normalized();
     int c = 1;
     int r = 0;
+    if (has_selection()) {
+      c = range.end.column - range.start.column;
+    }
     int start_size = document->size();
     buffer->set_text_in_range(range, u"");
     int size_diff = document->size() - start_size;
@@ -372,10 +375,22 @@ void Cursor::delete_text(int number_of_characters) {
       r = -size_diff;
       c = 0;
     }
-    // document->cursor_markers.splice(range.start, {r, c}, {0, 0});
-    document->update_markers(range.start, {r, c}, {0, 0});
+    document->cursor_markers.splice(range.start, {r, c}, {0, 0});
+    //document->update_markers(range.start, {r, c}, {0, -range.end.column-range.start.column});
     document->update_blocks(range.start.row, size_diff);
     clear_selection();
+  }
+}
+
+void Cursor::delete_next_text(std::u16string text)
+{
+  int l = text.size();
+  Cursor cur = copy();
+  for(int i=0; i<l; i++) {
+    cur.move_right(true);
+  }
+  if (cur.selected_text() == text) {
+    delete_text(l);
   }
 }
 

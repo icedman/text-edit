@@ -68,6 +68,8 @@ static int readEscapeSequence(std::string &keySequence) {
     return K_ESC;
   }
   read(STDIN_FILENO, &seq[0], 1);
+  
+  // printf(">%d\n", seq[0]);
 
   if (!kbhit(wait)) {
     return readMoreEscapeSequence(seq[0], keySequence);

@@ -15,6 +15,7 @@
 #define HIGHLIGHT_OFFSET 1000
 
 static std::map<int, int> colorMap;
+const wchar_t *symbol_tab = L"\u2847";
 
 bool use_system_colors = true;
 int fg = 0;
@@ -24,6 +25,7 @@ int sel = 0;
 int cmt = 0;
 int fn = 0;
 int kw = 0;
+int var = 0;
 
 int color_index(int r, int g, int b) {
   return color_info_t::nearest_color_index(r, g, b);
@@ -55,6 +57,7 @@ void update_colors() {
   sel = color_index(info.sel_r, info.sel_g, info.sel_b);
   fn = color_index(info.fn_r, info.fn_g, info.fn_b);
   kw = color_index(info.kw_r, info.kw_g, info.kw_b);
+  var = color_index(info.var_r, info.var_g, info.var_b);
   hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
   // hl = color_index(info.sel_r / 1.5, info.sel_g / 1.5, info.sel_b / 1.5);
 
@@ -221,9 +224,6 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
   clrtoeol();
 
   int l = strlen(text);
-  int indent_size = count_indent_size(text);
-
-  int edge = pair_for_color(fg, true, false);
   if (height) {
     *height = 1;
   }
@@ -231,7 +231,6 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
   int default_pair = pair_for_color(fg, false, false);
   for (int i = scroll_x; i < l; i++) {
     int pair = default_pair;
-    bool selected = false;
 
     if (i - scroll_x + 1 > (view->computed.w * (*height))) {
       if (!wrap) {
@@ -247,6 +246,9 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
     char ch = text[i];
     bool underline = false;
     bool reverse = false;
+    bool strike = false;
+    bool selected = false;
+    bool highlighted = false;
     int colorIdx = 0;
 
     // syntax highlights
@@ -254,8 +256,6 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
       if (s.start >= i && i < s.start + s.length) {
         underline = s.underline;
         colorIdx = color_index(s.r, s.g, s.b);
-        pair = pair_for_color(colorIdx, selected, false);
-        pair = pair > 0 ? pair : default_pair;
         break;
       }
     }
@@ -265,16 +265,19 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
         if (s.start <= i && i < s.start + s.length) {
           underline = s.underline;
           if (s.bg_a != 0) {
-            pair = pair_for_color(colorIdx, true, false);
+            highlighted = s.bg_a == 2;
+            selected = s.bg_a == 1;
           }
           if (s.caret != 0) {
             reverse = true;
             view->cursor.x = screen_col + i;
             view->cursor.y = screen_row;
           }
-          // int colorIdx = color_index(s.r, s.g, s.b);
-          // pair = pair_for_color(colorIdx, selected, false);
-          // pair = pair > 0 ? pair : default_pair;
+          // tabstop
+          if (s.strike) {
+            strike = true;
+            colorIdx = cmt;
+          }
         }
       }
     }
@@ -290,11 +293,12 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
     wchar_t *symbol = NULL;
 
     // tab stop
-    // if (tab_size > 0 && (i % tab_size == 0) && i < indent_size) {
-    //   pair = pair_for_color(cmt, selected, is_cursor_row);
-    //   symbol = (wchar_t *)symbol_tab;
-    //   ch = '|';
-    // }
+    if (strike) {
+      symbol = (wchar_t *)symbol_tab;
+    }
+
+    pair = pair_for_color(colorIdx, selected, highlighted);
+    pair = pair > 0 ? pair : default_pair;
 
     // render the character
     attron(COLOR_PAIR(pair));

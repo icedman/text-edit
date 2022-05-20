@@ -22,7 +22,7 @@ public:
   int selected;
   Point first_index;
   int ttl;
-  int thread_id;
+  long thread_id;
 
   static void run(Search *Search);
   void set_ready();

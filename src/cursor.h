@@ -43,6 +43,7 @@ public:
   bool is_edge(int row, int column);
   void insert_text(std::u16string text);
   void delete_text(int number_of_characters = 1);
+  void delete_next_text(std::u16string text);
 
   std::u16string selected_text();
 };

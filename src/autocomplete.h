@@ -27,7 +27,7 @@ public:
   std::vector<Match> matches;
   int selected;
   int ttl;
-  int thread_id;
+  long thread_id;
 
   static void run(AutoComplete *autocomplete);
   void set_ready();

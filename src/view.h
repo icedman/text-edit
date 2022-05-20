@@ -31,7 +31,7 @@ struct view_t {
   view_t()
       : parent(nullptr), frame{0, 0, 0, 0}, constraint{0, 0, 0, 0},
         computed{0, 0, 0, 0}, scroll{0, 0}, cursor{0, 0}, flex(0), direction(0),
-        show(true), focusable(false) {}
+        show(true), focusable(false), overlay(false) {}
 
   rect_t frame;      // preferred
   rect_t constraint; // set by parent
@@ -43,6 +43,7 @@ struct view_t {
   int direction;
   bool show;
   bool focusable;
+  bool overlay;
 
   view_t *parent;
   view_list children;

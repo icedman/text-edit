@@ -12,13 +12,31 @@
 #include <string>
 
 int main(int argc, char **argv) {
+  bool running = true;
+  
   initscr();
   raw();
+  // cbreak();
   keypad(stdscr, true);
   noecho();
   nodelay(stdscr, true);
 
-  bool running = true;
+  // std::string keySequence;
+  //  
+  int idx = 0;
+  char tmp[32];
+  while(running) {
+    int c = getch();
+    if (c != -1) {
+      clrtoeol();
+      sprintf(tmp, "%c %x %d %s\n", c, c, (c & 0x1f) == c, keyname(c));
+      addstr(tmp);
+      move(idx++,0);
+      if (idx > 10) idx = 0;
+      if (c == 'q') running = false;
+    }
+  }
+  // 
   // int ch = -1;
   // std::string keySequence;
   // while (running) {
@@ -33,7 +51,7 @@ int main(int argc, char **argv) {
   //   addstr(tmp);
   //   refresh();
   // }
-
+  
   while (running) {
     if (kbhit(500) != 0) {
       char seq[4] = {0, 0, 0, 0};

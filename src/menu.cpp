@@ -61,6 +61,9 @@ bool tabs_t::on_input(int ch, std::string key_sequence) {
       {"left", "up"},
       {"right", "down"},
   };
+  if (key_sequence == "down" || key_sequence == "up" || key_sequence == "enter" || key_sequence == "tab") {
+    view_t::input_focus = nullptr;
+  }
   if (remap.find(key_sequence) != remap.end()) {
     key_sequence = remap[key_sequence];
   }

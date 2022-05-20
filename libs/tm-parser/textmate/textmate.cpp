@@ -229,6 +229,26 @@ theme_info_t Textmate::theme_info() {
   kw.green *= 255;
   kw.blue *= 255;
 
+  color_info_t var;
+  if (current_theme()) {
+    // current_theme()->theme_color("comment", var);
+    style_t style = current_theme()->styles_for_scope("variable");
+    var = style.foreground;
+    if (var.is_blank()) {
+      current_theme()->theme_color("editor.foreground", var);
+    }
+    if (var.is_blank()) {
+      rgba_t tc = theme_color_from_scope_fg_bg(_default, false);
+      var.red = (float)tc.r / 255;
+      var.green = (float)tc.g / 255;
+      var.blue = (float)tc.b / 255;
+    }
+  }
+
+  var.red *= 255;
+  var.green *= 255;
+  var.blue *= 255;
+
   info.fg_r = fg.red;
   info.fg_g = fg.green;
   info.fg_b = fg.blue;
@@ -253,6 +273,10 @@ theme_info_t Textmate::theme_info() {
   info.kw_g = kw.green;
   info.kw_b = kw.blue;
   info.kw_a = color_info_t::nearest_color_index(kw.red, kw.green, kw.blue);
+  info.var_r = var.red;
+  info.var_g = var.green;
+  info.var_b = var.blue;
+  info.var_a = color_info_t::nearest_color_index(var.red, var.green, var.blue);
 
   // why does this happen?
   if (info.sel_r < 0 && info.sel_g < 0 && info.sel_b < 0) {
@@ -307,7 +331,7 @@ std::map<size_t, std::string> block_texts;
 std::vector<textstyle_t>
 Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
                           block_data_t *block, block_data_t *prev_block,
-                          block_data_t *next_block) {
+                          block_data_t *next_block, std::vector<span_info_t> *span_infos) {
 
   std::vector<textstyle_t> textstyle_buffer;
 
@@ -404,13 +428,16 @@ Textmate::run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
       prev = &s;
     }
   }
+    
+  if (span_infos) {
+    span_infos->clear();
+    for(auto &s : spans) {
+      span_infos->push_back(s);
+    }
+  }
 
   int idx = 0;
   textstyle_t *prev = NULL;
-
-  // if (spans.size() == 1) {
-  //   return textstyle_buffer;
-  // }
 
   for (int i = 0; i < l && i < MAX_STYLED_SPANS; i++) {
     textstyle_buffer.push_back(construct_style(spans, i));

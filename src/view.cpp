@@ -86,6 +86,8 @@ void view_t::layout(rect_t c) {
   for (auto c : children) {
     if (!c->show)
       continue;
+    if (c->overlay)
+      continue;
     *_h(&c->constraint) = *_h(&constraint);
     if (c->flex > 0) {
       flexibles.push_back(c);

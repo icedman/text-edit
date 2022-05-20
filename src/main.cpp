@@ -34,7 +34,7 @@
 #include "render.h"
 
 // symbols
-const wchar_t *symbol_tab = L"\u2847";
+extern const wchar_t *symbol_tab;
 
 // theme
 extern bool use_system_colors;
@@ -45,6 +45,7 @@ extern int sel;
 extern int cmt;
 extern int fn;
 extern int kw;
+extern int var;
 
 int width = 0;
 int height = 0;
@@ -139,7 +140,7 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
     }
   }
 }
-
+  
 void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height = 0) {
   std::vector<textstyle_t> &styles = block->styles;
@@ -151,6 +152,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   optional<Cursor> block_cursor = doc->block_cursor(doc->cursor());
   // optional<Bracket> bracket_cursor = doc->bracket_cursor(doc->cursor());
   SearchPtr search = doc->search();
+  TreeSitterPtr treesitter = doc->treesitter();
 
   screen_row += editor->computed.y;
   int screen_col = editor->computed.x;
@@ -237,6 +239,32 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
         break;
       }
     }
+
+/**  too slow
+    if (treesitter) {
+      for(auto s : block->span_infos) {
+        if (s.start <= i && i < s.start + s.length) {
+          if (s.scope.starts_with("source.")) {
+             std::vector<TSNode> nodes = treesitter->walk(row, i);
+            if (nodes.size() > 0) {
+              TSNode n = nodes.back();
+              const char *type = ts_node_type(n);
+              std::string stype = type;
+              if (stype == "identifier") {
+                pair = pair_for_color(var, selected, is_cursor_row);
+                underline = true;
+              }
+              if (stype == "type_identifier") {
+                pair = pair_for_color(fn, selected, is_cursor_row);
+                underline = true;
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+*/
 
     // decorate block edges
     if (block_cursor) {
@@ -376,7 +404,8 @@ void draw_text_buffer(editor_ptr editor) {
           block->styles = Textmate::run_highlighter(
               (char *)s.str().c_str(), doc->language, Textmate::theme(),
               block.get(), doc->previous_block(block).get(),
-              doc->next_block(block).get());
+              doc->next_block(block).get(), NULL);
+              //&block->span_infos);
 
           // find brackets
           // block->brackets.clear();
@@ -397,11 +426,13 @@ void draw_text_buffer(editor_ptr editor) {
 
       int line_height = 1;
 
-#if 0
+#if 1
       draw_text_line(editor, (idx++) + offset_y, computed_line,
         s.str().c_str(), block, &line_height);
 #else
       int l = s.str().size();
+      int indent_size = count_indent_size(s.str());
+      int tab_size = editor->draw_tab_stops ? doc->tab_string.size() : 0;
 
       std::vector<textstyle_t> extra;
 
@@ -412,21 +443,8 @@ void draw_text_buffer(editor_ptr editor) {
           if (res) {
             textstyle_t style = {
                 (*res).start.column,
-                (*res).end.column - (*res).start.column,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                false,
-                false,
-                true,
-                false,
+                (*res).end.column - (*res).start.column, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                false, false, true, false,
             };
             extra.push_back(style);
           }
@@ -439,29 +457,14 @@ void draw_text_buffer(editor_ptr editor) {
         if (c.end.column > 0) {
           if (c.start.row == computed_line) {
             textstyle_t style = {
-                c.start.column, 1,     0,     0,     0, 0, 0, 0, 0, 0, cmt, 0,
-                false,          false, false, false,
+                c.start.column, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+                false, false, false, false,
             };
             extra.push_back(style);
           }
           if (c.end.row == computed_line) {
             textstyle_t style = {
-                c.end.column - 1,
-                1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                cmt,
-                0,
-                false,
-                false,
-                false,
-                false,
+                c.end.column - 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, false, false, false, false,
             };
             extra.push_back(style);
           }
@@ -472,7 +475,7 @@ void draw_text_buffer(editor_ptr editor) {
       for (auto c : doc->cursors) {
         if (c.start.row == computed_line) {
           textstyle_t style = {
-              c.start.column,      1,     0,     0,     0,     0, 0, 0, 0, 0, 0,
+              c.start.column, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
               editor->has_focus(), false, false, false, false,
           };
           extra.push_back(style);
@@ -485,24 +488,28 @@ void draw_text_buffer(editor_ptr editor) {
           textstyle_t style = {
               (*res).start.column,
               (*res).end.column - (*res).start.column,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              sel,
-              0,
-              false,
-              false,
-              false,
-              false,
+              0, 0, 0, 0, 0, 0, 0, 0, 1, 0, false, false, false, false,
           };
           extra.push_back(style);
         }
       }
+
+      // render symbols
+      if (tab_size > 0 && tab_size <= indent_size) {
+        for (int i = 0; i < indent_size; i += tab_size) {
+          textstyle_t style = {
+              i, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, true,
+          };
+          extra.push_back(style);
+        }
+      }
+
+      if (doc->cursor().start.row == computed_line) {
+          textstyle_t style = {
+              0, l, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, false, false, false, false,
+          };
+          extra.push_back(style);
+        }
 
       draw_styled_text(editor, s.str().c_str(), (idx++) + offset_y, 0,
                        block->styles, &extra, editor->wrap, &line_height);
@@ -583,21 +590,53 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     attroff(COLOR_PAIR(pair));
   }
 
-  for (auto f : doc->folds) {
-    std::stringstream ss;
-    ss << "fold: ";
-    ss << f.start.row;
-    ss << ",";
-    ss << f.start.column;
-    ss << "-";
-    ss << f.end.row;
-    ss << ",";
-    ss << f.end.column;
-    int pair = def;
-    attron(COLOR_PAIR(pair));
+  // for (auto f : doc->folds) {
+  //  
+      
+  
+  BlockPtr block = doc->block_at(cursor.start.row);
+  if (block) {
     move(view->computed.y + row++, view->computed.x);
-    addstr(ss.str().substr(0, view->computed.w).c_str());
-    attroff(COLOR_PAIR(pair));
+    for(auto s : block->span_infos) {
+      if (cursor.start.column >= s.start && cursor.start.column < s.start + s.length) {
+        std::stringstream ss;
+        ss << s.start;
+        ss << ",";
+        ss << (s.start + s.length);
+        ss << " ";
+        ss << s.scope;
+        addstr(ss.str().substr(0, view->computed.w).c_str());
+        break;
+      }
+    }
+  }
+
+ std::stringstream ss;
+  //   ss << "fold: ";
+  //   ss << f.start.row;
+  //   ss << ",";
+  //   ss << f.start.column;
+  //   ss << "-";
+  //   ss << f.end.row;
+  //   ss << ",";
+  //   ss << f.end.column;
+  //   int pair = def;
+  //   attron(COLOR_PAIR(pair));
+  //   move(view->computed.y + row++, view->computed.x);
+  //   addstr(ss.str().substr(0, view->computed.w).c_str());
+  //   attroff(COLOR_PAIR(pair));
+  // }
+  if (treesitter->reference_ready) {
+    move(view->computed.y + row++, view->computed.x);
+    addstr("reference ready");
+    for(auto i : treesitter->identifiers) {
+      int pair = def;
+      attron(COLOR_PAIR(pair));
+      move(view->computed.y + row++, view->computed.x);
+      addstr(i.substr(0, view->computed.w).c_str());
+      attroff(COLOR_PAIR(pair));
+      if (view->computed.y + row > view->computed.h) break;
+    }
   }
 }
 
@@ -854,6 +893,8 @@ int main(int argc, char **argv) {
   noecho();
   nodelay(stdscr, true);
 
+  // printf("\x1b[?2004h");
+  
   if (use_system_colors) {
     use_default_colors();
   }
@@ -928,6 +969,17 @@ int main(int argc, char **argv) {
         }
         message << search->matches.size();
         message << " found";
+        
+        if (search->selected < search->matches.size()) {
+          Range range = search->matches[search->selected];
+          Cursor &cursor = doc->cursor();
+          if (range != cursor) {
+            cursor.start = range.start;
+            cursor.end = range.end;
+            editor->on_input(-1, ""); // ping
+            continue;
+          }
+        }
       }
     }
 
@@ -979,7 +1031,7 @@ int main(int argc, char **argv) {
         int p = (100 * cursor.start.row) / size;
         if (p == 0) {
           ss << "top";
-        } else if (p == 100) {
+        } else if (cursor.start.row + 1 >= size) {
           ss << "end";
         } else {
           ss << p;
@@ -1067,7 +1119,7 @@ int main(int argc, char **argv) {
     // blit
     move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
     refresh();
-    // curs_set(1);
+    curs_set(1);
 
     // input
     int ch = -1;
@@ -1088,7 +1140,7 @@ int main(int argc, char **argv) {
         for (auto f : tree) {
           std::string n;
           int d = f->depth;
-          for (int i = 0; i < d * 2; i++) {
+          for (int i = 0; i < d * 1; i++) {
             n += " ";
           }
 
@@ -1099,7 +1151,7 @@ int main(int argc, char **argv) {
               n += "+ ";
             }
           } else {
-            n += "  ";
+            n += " ";
           }
 
           n += f->name;
@@ -1123,7 +1175,6 @@ int main(int argc, char **argv) {
       if (frames > 2000) {
         frames = 0;
         idle++;
-        curs_set(1);
         if (Textmate::has_running_threads() || (warm_start-- > 0)) {
           editor->doc->make_dirty();
           break;
@@ -1133,7 +1184,7 @@ int main(int argc, char **argv) {
       if (idle > 8) {
         delay(50);
         if (idle > 32) {
-          delay(150);
+          delay(250);
           curs_set(0);
         }
       }
@@ -1170,16 +1221,6 @@ int main(int argc, char **argv) {
       if (search->selected >= search->matches.size()) {
         search->selected = search->matches.size() - 1;
       }
-      if (search->selected < search->matches.size()) {
-        Range range = search->matches[search->selected];
-        Cursor &cursor = doc->cursor();
-        if (range != cursor) {
-          cursor.start = range.start;
-          cursor.end = range.end;
-          editor->on_input(-1, ""); // ping
-          continue;
-        }
-      }
     }
 
     if (view_t::input_focus == editor && menu->show) {
@@ -1188,6 +1229,9 @@ int main(int argc, char **argv) {
       }
     }
     if (view_t::input_focus->on_input(ch, key_sequence)) {
+      if (!view_t::input_focus) {
+        view_t::input_focus = editors.current_editor();
+      }
       view_t::input_focus->update_scroll();
       continue;
     }
@@ -1209,12 +1253,12 @@ int main(int argc, char **argv) {
           message << ":";
           message << cmd.params;
         }
-      } else {
-        message << key_sequence;
       }
-      message << "]";
-      // message << " ";
-      // message << doc->folds.size();
+      message << "] ";
+      
+      message << key_sequence;
+      message << " ";
+      message << doc->buffer.is_modified();
     }
 
     if (cmd.command == "toggle_explorer") {
@@ -1283,6 +1327,7 @@ int main(int argc, char **argv) {
     if (cmd.command == "search_text" || cmd.command == "search_and_replace") {
       view_t::input_focus = find->input;
       find->enable_replace = cmd.command == "search_and_replace";
+      find->input->on_input(-1, "!select_all"); // << todo
       find->input->cursor = {0, 0};
       find->input->on_submit = [&editor, &find](std::u16string value) {
         editor->doc->clear_cursors();

@@ -32,7 +32,7 @@ public:
 
   FileList files;
 
-  int thread_id;
+  long thread_id;
   bool preloaded;
 
   void set_path(std::string path);

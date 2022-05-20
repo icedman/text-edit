@@ -85,8 +85,23 @@ std::map<std::string, Command> commands = {
 
 };
 
+  std::string keys_from_command_name(std::string name) {
+  std::map<std::string, Command> *cmds = &commands;
+  for(auto c : commands) {
+    if (c.second.command == name) {
+      return c.first;
+    }
+  }
+  return "unknown";
+}
+
 Command &command_from_keys(std::string keys, std::string previous) {
   std::map<std::string, Command> *cmds = &commands;
+  if (keys.size() > 1) {
+    if (keys[0] == '!') {
+      keys = keys_from_command_name(keys.substr(1));
+    }
+  }
   if (previous != "") {
     keys = previous + "+" + keys;
   }
@@ -95,3 +110,4 @@ Command &command_from_keys(std::string keys, std::string previous) {
   }
   return (*cmds)["unknown"];
 }
+

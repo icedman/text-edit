@@ -38,6 +38,8 @@ public:
   bool dirty;
 
   std::vector<textstyle_t> styles;
+  std::vector<span_info_t> span_infos;
+
   std::vector<Range> words;
   std::vector<Bracket> brackets;
 
@@ -100,7 +102,8 @@ public:
 
   void insert_text(std::u16string text);
   void delete_text(int number_of_characters = 1);
-
+  void delete_next_text(std::u16string text);
+  
   void move_to_start_of_document(bool anchor = false);
   void move_to_end_of_document(bool anchor = false);
   void move_to_start_of_line(bool anchor = false);

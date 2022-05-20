@@ -72,6 +72,10 @@ struct theme_info_t {
   int16_t kw_g;
   int16_t kw_b;
   int16_t kw_a;
+  int16_t var_r;
+  int16_t var_g;
+  int16_t var_b;
+  int16_t var_a;
 };
 
 struct textstyle_t {
@@ -113,7 +117,7 @@ public:
   static std::vector<textstyle_t>
   run_highlighter(char *_text, language_info_ptr lang, theme_ptr theme,
                   block_data_t *block = NULL, block_data_t *prev = NULL,
-                  block_data_t *next = NULL);
+                  block_data_t *next = NULL, std::vector<span_info_t> *span_infos = NULL);
   static theme_info_t theme_info();
   static theme_ptr theme();
   static bool has_running_threads();

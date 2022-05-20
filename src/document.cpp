@@ -54,12 +54,6 @@ std::u16string &Document::empty() {
 void Document::initialize(std::u16string &str) {
   buffer.set_text(str);
 
-  // todo ... cleanup conversions
-  if (buffer.extent().row == 0) {
-    str += u"\n";
-    buffer.set_text(str);
-  }
-
   buffer.flush_changes();
   blocks.clear();
 
@@ -95,7 +89,7 @@ void Document::set_language(language_info_ptr lang) {
     Json::Value comment_line = comments["lineComment"];
     if (comment_line.isString()) {
       std::string scomment = comment_line.asString();
-      scomment += " ";
+      // scomment += " ";
       comment_string = string_to_u16string(scomment);
     }
   }
@@ -204,6 +198,14 @@ void Document::delete_text(int number_of_characters) {
   for (auto &c : cursors) {
     begin_cursor_markers(c);
     c.delete_text(number_of_characters);
+    end_cursor_markers(c);
+  }
+}
+
+void Document::delete_next_text(std::u16string text) {
+  for (auto &c : cursors) {
+    begin_cursor_markers(c);
+    c.delete_next_text(text);
     end_cursor_markers(c);
   }
 }
@@ -349,15 +351,11 @@ std::vector<int> Document::selected_lines() {
 }
 
 void Document::undo() {
-  if (!snapshot)
-    return;
-
+  // current fold limitation
   if (folds.size() > 0) {
     folds.clear();
     return;
   }
-
-  // buffer.flush_changes();
 
   auto patch = buffer.get_inverted_changes(snapshot);
   std::vector<Patch::Change> changes = patch.get_changes();
@@ -365,18 +363,20 @@ void Document::undo() {
     return;
   }
 
-  Cursor cur = cursor();
-  cursors.clear();
-
   // limitation
   // begin_fold_markers();
+
+  Cursor cur = cursor();
+  cursors.clear();
 
   std::u16string prev;
   auto it = changes.rbegin();
   while (it != changes.rend()) {
     auto c = *it++;
+    
     if (cursors.size() > 0 && c.old_text->content.compare(prev) != 0)
       break;
+      
     Range range = Range({c.old_start, c.old_end});
     buffer.set_text_in_range(range, c.new_text->content.data());
 
@@ -386,8 +386,9 @@ void Document::undo() {
     if (cur.start != c.new_end && cur.end != c.new_start) {
       cur.start = c.new_end;
       cur.end = c.new_start;
-      cursors.push_back(cur.copy());
+      cursors.insert(cursors.begin(), cur.copy());
     }
+    
     redo_patches.push_back(
         Redo({c.old_text->content.data(), {c.new_start, c.new_end}}));
 
@@ -588,7 +589,7 @@ int Document::computed_size() {
   return l;
 }
 
-int Document::size() { return buffer.extent().row; }
+int Document::size() { return buffer.extent().row + 1; }
 
 BlockPtr Document::block_at(int line) {
 
@@ -1140,10 +1141,18 @@ void Document::on_input(char last_character) {
     return;
   }
 
+  // todo << actual text, not just [0] character
   if (autoclose_pairs.size() > 1) {
     for (int i = 0; i < autoclose_pairs.size() - 1; i += 2) {
+      if (autoclose_pairs[i].size() > 1) continue;
       if (autoclose_pairs[i][0] == last_character) {
         auto_close(i);
+        return;
+      }
+      
+      if (autoclose_pairs[i+1].size() > 1) continue;
+      if (autoclose_pairs[i+1][0] == last_character) {
+        delete_next_text(string_to_u16string(autoclose_pairs[i+1]));
         return;
       }
     }
