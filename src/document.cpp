@@ -15,6 +15,16 @@
 
 static std::u16string clipboard_data;
 
+HistoryEntry::HistoryEntry() : snapshot(0)
+{}
+
+HistoryEntry::~HistoryEntry()
+{
+  if (snapshot) {
+    delete snapshot;
+  }
+}
+
 Block::Block()
     : block_data_t(), line(0), line_height(1), line_length(0), dirty(true) {}
 
@@ -357,6 +367,22 @@ void Document::undo() {
     return;
   }
 
+  if (!entries.size()) return;
+
+  HistoryEntryPtr last = entries.back();
+  while(last->patches.size() == 0) {
+    if (entries.size() == 1) return;
+    entries.pop_back();
+    last = entries.back();
+  }
+  for(auto c : last->patches) {
+    // printf(">>>%s\n", u16string_to_string(c.text).c_str());
+    buffer.set_text_in_range(c.range, c.text.data());
+  }
+
+  entries.pop_back();
+  make_dirty();
+#if 0
   auto patch = buffer.get_inverted_changes(snapshot);
   std::vector<Patch::Change> changes = patch.get_changes();
   if (!changes.size()) {
@@ -396,9 +422,11 @@ void Document::undo() {
   }
 
   make_dirty();
+#endif
 }
 
 void Document::redo() {
+#if 0
   if (redo_patches.size() == 0) {
     return;
   }
@@ -435,6 +463,7 @@ void Document::redo() {
   }
 
   make_dirty();
+#endif
 }
 
 void Document::make_dirty(int line) {
@@ -503,6 +532,27 @@ void Document::end_fold_markers() {
     if (it != folds.end()) {
       folds.erase(it);
     }
+  }
+}
+
+void Document::begin_undo_markers() {
+  int idx = 0;
+  for (auto &c : entries) {
+    c->id = idx++;
+    // undo_markers.insert(c.id, c.start, c.end);
+  }
+}
+
+void Document::end_undo_markers() {
+  std::vector<Cursor> disposables;
+
+  for (auto &c : entries) {
+    // c.start = undo_markers.get_start(c.id);
+    // c.end = undo_markers.get_end(c.id);
+    // fold_markers.remove(c.id);
+    // if (c.end.row - c.start.row <= 0) {
+    //   disposables.push_back(c);
+    // }
   }
 }
 
@@ -1137,6 +1187,7 @@ optional<Cursor> Document::span_cursor(Cursor cursor) {
 
 void Document::on_input(char last_character) {
   if (last_character == '\n') {
+    prepare_undo();
     auto_indent();
     return;
   }
@@ -1184,4 +1235,40 @@ void Document::auto_close(int idx) {
     insert_text(string_to_u16string(autoclose_pairs[idx + 1]));
   }
   cursors = curs_backup;
+}
+
+void Document::prepare_undo()
+{
+  bool add_new_entry = true;
+  if (entries.size()) {
+    HistoryEntryPtr last = entries.back();
+    if (last->patches.size() == 0) {
+      add_new_entry = false;
+    } else {
+      // delete last->snapshot;
+      // last->snapshot = NULL;
+    }
+  }
+
+  HistoryEntryPtr last;
+
+  if (add_new_entry) {
+    last = std::make_shared<HistoryEntry>();
+    entries.push_back(last);
+    last->snapshot = buffer.create_snapshot();
+    last->snapshot->flush_preceding_changes();
+    return;
+  }
+
+  last = entries.back();
+  auto patch = buffer.get_inverted_changes(last->snapshot);
+  // last->changes = patch.get_changes();
+
+  for(auto c : patch.get_changes()) {
+    // std::string s = u16string_to_string(c.old_text->content.data());
+    last->patches.push_back(TextPatch{c.new_text->content.data(),
+        Range{
+          c.old_start, c.old_end
+        }});
+  }
 }

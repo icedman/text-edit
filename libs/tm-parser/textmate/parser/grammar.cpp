@@ -238,11 +238,16 @@ void* grammar_t::setup_includes_thread(void* arg)
     p->_this->setup_includes(p->rule, p->base, p->self, p->stack);
     delete p;
     running_threads--;
+    return NULL;
 }
 
 rule_ptr grammar_t::add_grammar(std::string const& scope,
     Json::Value const& json, rule_ptr const& base, bool spawn_thread)
 {
+    #ifdef DISABLE_ADD_GRAMMAR_THREADS
+    spawn_thread = false;
+    #endif
+
     rule_ptr grammar = convert_json(json);
     if (grammar) {
         _grammars.emplace(scope, grammar);
@@ -272,7 +277,11 @@ rule_ptr grammar_t::add_grammar(std::string const& scope,
 rule_ptr grammar_t::add_grammar(std::string const& scope, std::string const& path,
     rule_ptr const& base, bool spawn_thread)
 {
-    rule_ptr grammar = std::make_shared<rule_t>(); // convert_json(json);
+    #ifdef DISABLE_ADD_GRAMMAR_THREADS
+    spawn_thread = false;
+    #endif
+
+    rule_ptr grammar = std::make_shared<rule_t>();
     if (grammar) {
         _grammars.emplace(scope, grammar);
 

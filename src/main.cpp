@@ -1330,8 +1330,15 @@ int main(int argc, char **argv) {
       find->input->on_input(-1, "!select_all"); // << todo
       find->input->cursor = {0, 0};
       find->input->on_submit = [&editor, &find](std::u16string value) {
-        editor->doc->clear_cursors();
         editor->doc->run_search(value, editor->doc->cursor().start);
+        editor->doc->clear_cursors();
+        
+        if (find->input->has_focus() && editor->doc->search()) {
+          editor->doc->search()->selected++;
+          if (editor->doc->search()->selected >= editor->doc->search()->matches.size()) {
+            editor->doc->search()->selected = 0;
+          }
+        }
         return true;
       };
       find->replace->cursor = {0, 0};
@@ -1347,6 +1354,8 @@ int main(int argc, char **argv) {
         }
         if (search->selected >= search->matches.size()) {
           search->selected = search->matches.size() - 1;
+        } else {
+          search->selected = 0;
         }
         return true;
       };

@@ -86,7 +86,6 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   if (cmd.command == "toggle_wrap") {
     wrap = !wrap;
     doc->make_dirty();
-    return true;
   }
   if (cmd.command == "expand_to_block") {
     // move to doc
@@ -100,10 +99,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     }
   }
   if (cmd.command == "toggle_block_fold") {
-    // if (doc->treesitter() && !request_treesitter && doc->cursors.size() == 1)
-    // {
     doc->toggle_fold(doc->cursor());
-    // }
   }
   if (cmd.command == "selection_to_uppercase") {
     doc->selection_to_uppercase();
@@ -169,6 +165,20 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->move_to_next_word();
   }
 
+  // delete
+  if (cmd.command == "backspace") {
+    if (!doc->has_selection()) {
+      doc->move_left();
+    }
+    doc->delete_text();
+    request_treesitter = true;
+  }
+  if (cmd.command == "delete") {
+    doc->delete_text();
+    request_treesitter = true;
+  }
+
+  // input
   if (key_sequence == "enter") {
     key_sequence = "";
     ch = '\n';
@@ -178,7 +188,6 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     ch = '\t';
   }
 
-  // input
   if (key_sequence == "" && ch != -1) {
     std::u16string text = u"x";
     text[0] = ch;
@@ -193,19 +202,6 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
 
   if (!request_autocomplete && autocomplete) {
     doc->clear_autocomplete();
-  }
-
-  // delete
-  if (cmd.command == "backspace") {
-    if (!doc->has_selection()) {
-      doc->move_left();
-    }
-    doc->delete_text();
-    request_treesitter = true;
-  }
-  if (cmd.command == "delete") {
-    doc->delete_text();
-    request_treesitter = true;
   }
 
   update_scroll();
@@ -234,12 +230,16 @@ bool editor_t::on_idle(int frame) {
       return true;
     }
   }
-  if (frame == 750) {
+  if (frame == 850) {
     SearchPtr search = doc->search();
     if (search && search->state != Search::State::Consumed) {
       search->set_consumed();
       return true;
     }
+  }
+
+  if (frame == 1000) {
+    doc->prepare_undo();
   }
   return false;
 }

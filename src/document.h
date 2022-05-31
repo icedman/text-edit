@@ -20,6 +20,26 @@ public:
   int flags;
 };
 
+class TextPatch {
+public:
+  std::u16string text;
+  Range range;
+};
+// std::vector<Redo> redo_patches;
+
+class HistoryEntry {
+public:
+  HistoryEntry();
+  ~HistoryEntry();
+
+  int id;
+  std::vector<Cursor> cursors;
+  std::vector<TextPatch> patches;
+  TextBuffer::Snapshot *snapshot;
+};
+
+typedef std::shared_ptr<HistoryEntry> HistoryEntryPtr;
+
 // textmate::block_data_t { ---
 // parse::stack_ptr parser_state;
 // bool comment_block;
@@ -64,6 +84,7 @@ public:
   MarkerIndex cursor_markers;
   std::vector<Cursor> folds;
   MarkerIndex fold_markers;
+  MarkerIndex undo_markers;
 
   // background services
   std::u16string autocomplete_substring;
@@ -71,6 +92,9 @@ public:
   std::u16string search_key;
   std::map<std::u16string, SearchPtr> searches;
   std::vector<TreeSitterPtr> treesitters;
+
+  // history
+  std::vector<HistoryEntryPtr> entries;
 
   class Redo {
   public:
@@ -94,6 +118,8 @@ public:
   void set_language(language_info_ptr lang);
 
   Cursor &cursor();
+
+  void prepare_undo();
 
   void move_up(bool anchor = false);
   void move_down(bool anchor = false);
@@ -130,6 +156,8 @@ public:
   void end_cursor_markers(Cursor &cursor);
   void begin_fold_markers();
   void end_fold_markers();
+  void begin_undo_markers();
+  void end_undo_markers();
   void update_markers(Point a, Point b, Point c);
 
   void toggle_fold(Cursor cursor);
