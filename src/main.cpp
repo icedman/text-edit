@@ -181,9 +181,10 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   bool is_cursor_row =
       (editor->has_focus() && (row == doc->cursor().start.row || fold_size));
   int default_pair = pair_for_color(fg, false, is_cursor_row);
+  int pair = default_pair;
+
   for (int i = scroll_x; i < l; i++) {
-    int pair = default_pair;
-    bool selected = false;
+    pair = default_pair;
 
     if (i - scroll_x + 1 > (editor->computed.w * (*height))) {
       if (!editor->wrap) {
@@ -199,6 +200,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     block->line_height = *height;
 
     // cursor selections
+    bool selected = false;
     for (auto cursor : cursors) {
       if (cursor.is_within(row, i)) {
         selected = cursors.size() > 1 || cursor.has_selection();
@@ -230,8 +232,13 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     bool underline = false;
 
     // syntax highlights
-    for (auto s : styles) {
-      if (s.start >= i && i < s.start + s.length) {
+    // for (auto s : styles) {
+    int idx = 0;
+    auto it = styles.rbegin();
+    while(it != styles.rend()) {
+      auto s = *it++;
+      idx++;
+      if (s.start <= i && i < s.start + s.length) {
         underline = s.underline;
         int colorIdx = color_index(s.r, s.g, s.b);
         pair = pair_for_color(colorIdx, selected, is_cursor_row);
@@ -240,7 +247,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
       }
     }
 
-/**  too slow
+    /**  too slow
     if (treesitter) {
       for(auto s : block->span_infos) {
         if (s.start <= i && i < s.start + s.length) {
@@ -323,7 +330,6 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   }
 
   char spacer = ' ';
-  int pair = default_pair;
   if (fold_size) {
     pair = pair_for_color(cmt, false, true);
     std::stringstream ss;
