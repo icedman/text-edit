@@ -212,9 +212,9 @@ bool editor_t::on_idle(int frame) {
   if (frame == 500 && request_treesitter) {
     doc->run_treesitter();
     request_treesitter = false;
-    
+
     // save undo
-    //doc->snapshots.push_back(doc->buffer.create_snapshot());
+    // doc->snapshots.push_back(doc->buffer.create_snapshot());
     return true;
   }
   if (frame == 750 && request_autocomplete) {

@@ -85,9 +85,9 @@ std::map<std::string, Command> commands = {
 
 };
 
-  std::string keys_from_command_name(std::string name) {
+std::string keys_from_command_name(std::string name) {
   std::map<std::string, Command> *cmds = &commands;
-  for(auto c : commands) {
+  for (auto c : commands) {
     if (c.second.command == name) {
       return c.first;
     }
@@ -110,4 +110,3 @@ Command &command_from_keys(std::string keys, std::string previous) {
   }
   return (*cmds)["unknown"];
 }
-

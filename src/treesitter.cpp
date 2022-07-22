@@ -2,8 +2,8 @@
 #include "document.h"
 #include "utf8.h"
 
-#include <functional>
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <pthread.h>
 
@@ -124,9 +124,9 @@ void build_tree(TreeSitter *treesitter) {
     return;
   }
 
-  TSTree *tree =
-      ts_parser_parse_string(parser, NULL /* TODO: old_tree */,
-                             (char *)(treesitter->content.c_str()), treesitter->content.size());
+  TSTree *tree = ts_parser_parse_string(parser, NULL /* TODO: old_tree */,
+                                        (char *)(treesitter->content.c_str()),
+                                        treesitter->content.size());
 
   if (tree) {
     treesitter->tree = tree;
@@ -137,12 +137,12 @@ void build_tree(TreeSitter *treesitter) {
   ts_parser_delete(parser);
 }
 
-void walk_tree_for_reference(std::string &content, TSTreeCursor *cursor, int depth,
-               std::vector<std::string> *identifiers) {
+void walk_tree_for_reference(std::string &content, TSTreeCursor *cursor,
+                             int depth, std::vector<std::string> *identifiers) {
   TSNode node = ts_tree_cursor_current_node(cursor);
   int start = ts_node_start_byte(node);
   int end = ts_node_end_byte(node);
-  int l = end-start;
+  int l = end - start;
 
   const char *type = ts_node_type(node);
   TSPoint startPoint = ts_node_start_point(node);
@@ -153,8 +153,9 @@ void walk_tree_for_reference(std::string &content, TSTreeCursor *cursor, int dep
   }
 
   if (strcmp(type, "identifier") == 0 && l > 2) {
-    std::string tmp = content.substr(start, end-start);
-    if (std::find(identifiers->begin(), identifiers->end(), tmp) == identifiers->end()) {
+    std::string tmp = content.substr(start, end - start);
+    if (std::find(identifiers->begin(), identifiers->end(), tmp) ==
+        identifiers->end()) {
       identifiers->push_back(tmp);
     }
   }
@@ -167,18 +168,19 @@ void walk_tree_for_reference(std::string &content, TSTreeCursor *cursor, int dep
   }
 
   ts_tree_cursor_delete(&_cur);
-
 }
 
 void build_reference(TreeSitter *treesitter) {
-  if (!treesitter->tree) return;
-  
+  if (!treesitter->tree)
+    return;
+
   Document *doc = treesitter->document;
   TextBuffer::Snapshot *snapshot = treesitter->snapshot;
 
   TSNode root_node = ts_tree_root_node(treesitter->tree);
   TSTreeCursor cursor = ts_tree_cursor_new(root_node);
-  walk_tree_for_reference(treesitter->content, &cursor, 0, &treesitter->identifiers);
+  walk_tree_for_reference(treesitter->content, &cursor, 0,
+                          &treesitter->identifiers);
   ts_tree_cursor_delete(&cursor);
 }
 
@@ -194,8 +196,8 @@ bool TreeSitter::is_available(std::string lang_id) {
 }
 
 TreeSitter::TreeSitter()
-    : state(State::Loading), snapshot(0), document(0), tree(NULL), ttl(TREESITTER_TTL), thread_id(0),
-      reference_ready(false) {}
+    : state(State::Loading), snapshot(0), document(0), tree(NULL),
+      ttl(TREESITTER_TTL), thread_id(0), reference_ready(false) {}
 
 TreeSitter::~TreeSitter() {
   if (snapshot) {
@@ -249,12 +251,12 @@ void *treeSitter_thread(void *arg) {
   treesitter->thread_id = 0;
   treesitter->set_ready();
 
-  //build_reference(treesitter);
-  //treesitter->reference_ready = true;
+  // build_reference(treesitter);
+  // treesitter->reference_ready = true;
 
   delete treesitter->snapshot;
   treesitter->snapshot = NULL;
-  
+
   treesitter->content.clear();
   return NULL;
 }

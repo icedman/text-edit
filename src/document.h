@@ -22,7 +22,8 @@ public:
 
 class TextPatch {
 public:
-  std::u16string text;
+  std::u16string old_text;
+  std::u16string new_text;
   Range range;
 };
 // std::vector<Redo> redo_patches;
@@ -129,7 +130,7 @@ public:
   void insert_text(std::u16string text);
   void delete_text(int number_of_characters = 1);
   void delete_next_text(std::u16string text);
-  
+
   void move_to_start_of_document(bool anchor = false);
   void move_to_end_of_document(bool anchor = false);
   void move_to_start_of_line(bool anchor = false);

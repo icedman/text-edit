@@ -140,7 +140,7 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
     }
   }
 }
-  
+
 void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height = 0) {
   std::vector<textstyle_t> &styles = block->styles;
@@ -235,7 +235,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     // for (auto s : styles) {
     int idx = 0;
     auto it = styles.rbegin();
-    while(it != styles.rend()) {
+    while (it != styles.rend()) {
       auto s = *it++;
       idx++;
       if (s.start <= i && i < s.start + s.length) {
@@ -271,7 +271,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
         }
       }
     }
-*/
+    */
 
     // decorate block edges
     if (block_cursor) {
@@ -411,7 +411,7 @@ void draw_text_buffer(editor_ptr editor) {
               (char *)s.str().c_str(), doc->language, Textmate::theme(),
               block.get(), doc->previous_block(block).get(),
               doc->next_block(block).get(), NULL);
-              //&block->span_infos);
+          //&block->span_infos);
 
           // find brackets
           // block->brackets.clear();
@@ -433,8 +433,8 @@ void draw_text_buffer(editor_ptr editor) {
       int line_height = 1;
 
 #if 1
-      draw_text_line(editor, (idx++) + offset_y, computed_line,
-        s.str().c_str(), block, &line_height);
+      draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
+                     block, &line_height);
 #else
       int l = s.str().size();
       int indent_size = count_indent_size(s.str());
@@ -449,8 +449,21 @@ void draw_text_buffer(editor_ptr editor) {
           if (res) {
             textstyle_t style = {
                 (*res).start.column,
-                (*res).end.column - (*res).start.column, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                false, false, true, false,
+                (*res).end.column - (*res).start.column,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+                false,
+                true,
+                false,
             };
             extra.push_back(style);
           }
@@ -463,14 +476,29 @@ void draw_text_buffer(editor_ptr editor) {
         if (c.end.column > 0) {
           if (c.start.row == computed_line) {
             textstyle_t style = {
-                c.start.column, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-                false, false, false, false,
+                c.start.column, 1,     0,     0,     0, 0, 0, 0, 0, 0, 1, 0,
+                false,          false, false, false,
             };
             extra.push_back(style);
           }
           if (c.end.row == computed_line) {
             textstyle_t style = {
-                c.end.column - 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, false, false, false, false,
+                c.end.column - 1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                false,
+                false,
+                false,
+                false,
             };
             extra.push_back(style);
           }
@@ -481,7 +509,7 @@ void draw_text_buffer(editor_ptr editor) {
       for (auto c : doc->cursors) {
         if (c.start.row == computed_line) {
           textstyle_t style = {
-              c.start.column, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              c.start.column,      1,     0,     0,     0,     0, 0, 0, 0, 0, 0,
               editor->has_focus(), false, false, false, false,
           };
           extra.push_back(style);
@@ -494,7 +522,20 @@ void draw_text_buffer(editor_ptr editor) {
           textstyle_t style = {
               (*res).start.column,
               (*res).end.column - (*res).start.column,
-              0, 0, 0, 0, 0, 0, 0, 0, 1, 0, false, false, false, false,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              false,
+              false,
+              false,
+              false,
           };
           extra.push_back(style);
         }
@@ -511,11 +552,11 @@ void draw_text_buffer(editor_ptr editor) {
       }
 
       if (doc->cursor().start.row == computed_line) {
-          textstyle_t style = {
-              0, l, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, false, false, false, false,
-          };
-          extra.push_back(style);
-        }
+        textstyle_t style = {
+            0, l, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, false, false, false, false,
+        };
+        extra.push_back(style);
+      }
 
       draw_styled_text(editor, s.str().c_str(), (idx++) + offset_y, 0,
                        block->styles, &extra, editor->wrap, &line_height);
@@ -597,14 +638,14 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   }
 
   // for (auto f : doc->folds) {
-  //  
-      
-  
+  //
+
   BlockPtr block = doc->block_at(cursor.start.row);
   if (block) {
     move(view->computed.y + row++, view->computed.x);
-    for(auto s : block->span_infos) {
-      if (cursor.start.column >= s.start && cursor.start.column < s.start + s.length) {
+    for (auto s : block->span_infos) {
+      if (cursor.start.column >= s.start &&
+          cursor.start.column < s.start + s.length) {
         std::stringstream ss;
         ss << s.start;
         ss << ",";
@@ -617,7 +658,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     }
   }
 
- std::stringstream ss;
+  std::stringstream ss;
   //   ss << "fold: ";
   //   ss << f.start.row;
   //   ss << ",";
@@ -635,13 +676,14 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   if (treesitter->reference_ready) {
     move(view->computed.y + row++, view->computed.x);
     addstr("reference ready");
-    for(auto i : treesitter->identifiers) {
+    for (auto i : treesitter->identifiers) {
       int pair = def;
       attron(COLOR_PAIR(pair));
       move(view->computed.y + row++, view->computed.x);
       addstr(i.substr(0, view->computed.w).c_str());
       attroff(COLOR_PAIR(pair));
-      if (view->computed.y + row > view->computed.h) break;
+      if (view->computed.y + row > view->computed.h)
+        break;
     }
   }
 }
@@ -900,7 +942,7 @@ int main(int argc, char **argv) {
   nodelay(stdscr, true);
 
   // printf("\x1b[?2004h");
-  
+
   if (use_system_colors) {
     use_default_colors();
   }
@@ -975,7 +1017,7 @@ int main(int argc, char **argv) {
         }
         message << search->matches.size();
         message << " found";
-        
+
         if (search->selected < search->matches.size()) {
           Range range = search->matches[search->selected];
           Cursor &cursor = doc->cursor();
@@ -1261,7 +1303,7 @@ int main(int argc, char **argv) {
         }
       }
       message << "] ";
-      
+
       message << key_sequence;
       message << " ";
       message << doc->buffer.is_modified();
@@ -1338,10 +1380,11 @@ int main(int argc, char **argv) {
       find->input->on_submit = [&editor, &find](std::u16string value) {
         editor->doc->run_search(value, editor->doc->cursor().start);
         editor->doc->clear_cursors();
-        
+
         if (find->input->has_focus() && editor->doc->search()) {
           editor->doc->search()->selected++;
-          if (editor->doc->search()->selected >= editor->doc->search()->matches.size()) {
+          if (editor->doc->search()->selected >=
+              editor->doc->search()->matches.size()) {
             editor->doc->search()->selected = 0;
           }
         }

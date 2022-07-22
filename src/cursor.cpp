@@ -343,7 +343,9 @@ void Cursor::insert_text(std::u16string text) {
     r = size_diff;
   }
   // document->cursor_markers.splice(range.start, {0, 0}, {r, text.size()});
-  document->update_markers(range.start, {0, range.end.column - range.start.column}, {r, text.size()});
+  document->update_markers(range.start,
+                           {0, range.end.column - range.start.column},
+                           {r, text.size()});
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
   for (int i = 0; i < text.size(); i++) {
@@ -376,17 +378,17 @@ void Cursor::delete_text(int number_of_characters) {
       c = 0;
     }
     document->cursor_markers.splice(range.start, {r, c}, {0, 0});
-    //document->update_markers(range.start, {r, c}, {0, -range.end.column-range.start.column});
+    // document->update_markers(range.start, {r, c}, {0,
+    // -range.end.column-range.start.column});
     document->update_blocks(range.start.row, size_diff);
     clear_selection();
   }
 }
 
-void Cursor::delete_next_text(std::u16string text)
-{
+void Cursor::delete_next_text(std::u16string text) {
   int l = text.size();
   Cursor cur = copy();
-  for(int i=0; i<l; i++) {
+  for (int i = 0; i < l; i++) {
     cur.move_right(true);
   }
   if (cur.selected_text() == text) {

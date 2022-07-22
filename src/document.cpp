@@ -15,11 +15,9 @@
 
 static std::u16string clipboard_data;
 
-HistoryEntry::HistoryEntry() : snapshot(0)
-{}
+HistoryEntry::HistoryEntry() : snapshot(0) {}
 
-HistoryEntry::~HistoryEntry()
-{
+HistoryEntry::~HistoryEntry() {
   if (snapshot) {
     delete snapshot;
   }
@@ -131,6 +129,7 @@ bool Document::load(std::string path) {
   (*enc).decode(str, buffer.str().c_str(), buffer.str().size());
 
   initialize(str);
+  prepare_undo();
   return true;
 }
 
@@ -358,112 +357,6 @@ std::vector<int> Document::selected_lines() {
     }
   }
   return res;
-}
-
-void Document::undo() {
-  // current fold limitation
-  if (folds.size() > 0) {
-    folds.clear();
-    return;
-  }
-
-  if (!entries.size()) return;
-
-  HistoryEntryPtr last = entries.back();
-  while(last->patches.size() == 0) {
-    if (entries.size() == 1) return;
-    entries.pop_back();
-    last = entries.back();
-  }
-  for(auto c : last->patches) {
-    // printf(">>>%s\n", u16string_to_string(c.text).c_str());
-    buffer.set_text_in_range(c.range, c.text.data());
-  }
-
-  entries.pop_back();
-  make_dirty();
-#if 0
-  auto patch = buffer.get_inverted_changes(snapshot);
-  std::vector<Patch::Change> changes = patch.get_changes();
-  if (!changes.size()) {
-    return;
-  }
-
-  // limitation
-  // begin_fold_markers();
-
-  Cursor cur = cursor();
-  cursors.clear();
-
-  std::u16string prev;
-  auto it = changes.rbegin();
-  while (it != changes.rend()) {
-    auto c = *it++;
-    
-    if (cursors.size() > 0 && c.old_text->content.compare(prev) != 0)
-      break;
-      
-    Range range = Range({c.old_start, c.old_end});
-    buffer.set_text_in_range(range, c.new_text->content.data());
-
-    // delete / insert
-    // update_markers(c.old_start, {0,0}, {0, c.new_text->content.size()});
-
-    if (cur.start != c.new_end && cur.end != c.new_start) {
-      cur.start = c.new_end;
-      cur.end = c.new_start;
-      cursors.insert(cursors.begin(), cur.copy());
-    }
-    
-    redo_patches.push_back(
-        Redo({c.old_text->content.data(), {c.new_start, c.new_end}}));
-
-    prev = c.old_text->content;
-  }
-
-  make_dirty();
-#endif
-}
-
-void Document::redo() {
-#if 0
-  if (redo_patches.size() == 0) {
-    return;
-  }
-
-  Cursor cur = cursor();
-  cursors.clear();
-
-  if (folds.size() > 0) {
-    folds.clear();
-    return;
-  }
-
-  int redid = 0;
-  std::u16string prev;
-  auto it = redo_patches.rbegin();
-  while (it != redo_patches.rend()) {
-    Redo c = *it++;
-    buffer.set_text_in_range(c.range, c.text.data());
-    cur.start = c.range.start;
-    cur.end = cur.start;
-    for (int i = 0; i < c.text.length(); i++) {
-      cur.move_right();
-    }
-    cursors.push_back(cur.copy());
-    redid++;
-    if (redid > 1 && prev != c.text) {
-      break;
-    }
-    prev = c.text;
-  }
-
-  for (int i = 0; i < redid; i++) {
-    redo_patches.pop_back();
-  }
-
-  make_dirty();
-#endif
 }
 
 void Document::make_dirty(int line) {
@@ -1195,15 +1088,17 @@ void Document::on_input(char last_character) {
   // todo << actual text, not just [0] character
   if (autoclose_pairs.size() > 1) {
     for (int i = 0; i < autoclose_pairs.size() - 1; i += 2) {
-      if (autoclose_pairs[i].size() > 1) continue;
+      if (autoclose_pairs[i].size() > 1)
+        continue;
       if (autoclose_pairs[i][0] == last_character) {
         auto_close(i);
         return;
       }
-      
-      if (autoclose_pairs[i+1].size() > 1) continue;
-      if (autoclose_pairs[i+1][0] == last_character) {
-        delete_next_text(string_to_u16string(autoclose_pairs[i+1]));
+
+      if (autoclose_pairs[i + 1].size() > 1)
+        continue;
+      if (autoclose_pairs[i + 1][0] == last_character) {
+        delete_next_text(string_to_u16string(autoclose_pairs[i + 1]));
         return;
       }
     }
@@ -1237,6 +1132,7 @@ void Document::auto_close(int idx) {
   cursors = curs_backup;
 }
 
+/*
 void Document::prepare_undo()
 {
   bool add_new_entry = true;
@@ -1272,3 +1168,171 @@ void Document::prepare_undo()
         }});
   }
 }
+
+
+void Document::undo() {
+  // current fold limitation
+  if (folds.size() > 0) {
+    folds.clear();
+    return;
+  }
+
+  if (!entries.size()) return;
+
+  HistoryEntryPtr last = entries.back();
+  while(last->patches.size() == 0) {
+    if (entries.size() == 1) return;
+    entries.pop_back();
+    last = entries.back();
+  }
+  for(auto c : last->patches) {
+    // printf(">>>%s\n", u16string_to_string(c.text).c_str());
+    buffer.set_text_in_range(c.range, c.text.data());
+  }
+
+  entries.pop_back();
+  make_dirty();
+#if 0
+  auto patch = buffer.get_inverted_changes(snapshot);
+  std::vector<Patch::Change> changes = patch.get_changes();
+  if (!changes.size()) {
+    return;
+  }
+
+  // limitation
+  // begin_fold_markers();
+
+  Cursor cur = cursor();
+  cursors.clear();
+
+  std::u16string prev;
+  auto it = changes.rbegin();
+  while (it != changes.rend()) {
+    auto c = *it++;
+
+    if (cursors.size() > 0 && c.old_text->content.compare(prev) != 0)
+      break;
+
+    Range range = Range({c.old_start, c.old_end});
+    buffer.set_text_in_range(range, c.new_text->content.data());
+
+    // delete / insert
+    // update_markers(c.old_start, {0,0}, {0, c.new_text->content.size()});
+
+    if (cur.start != c.new_end && cur.end != c.new_start) {
+      cur.start = c.new_end;
+      cur.end = c.new_start;
+      cursors.insert(cursors.begin(), cur.copy());
+    }
+
+    redo_patches.push_back(
+        Redo({c.old_text->content.data(), {c.new_start, c.new_end}}));
+
+    prev = c.old_text->content;
+  }
+
+  make_dirty();
+#endif
+}
+
+void Document::redo() {
+#if 0
+  if (redo_patches.size() == 0) {
+    return;
+  }
+
+  Cursor cur = cursor();
+  cursors.clear();
+
+  if (folds.size() > 0) {
+    folds.clear();
+    return;
+  }
+
+  int redid = 0;
+  std::u16string prev;
+  auto it = redo_patches.rbegin();
+  while (it != redo_patches.rend()) {
+    Redo c = *it++;
+    buffer.set_text_in_range(c.range, c.text.data());
+    cur.start = c.range.start;
+    cur.end = cur.start;
+    for (int i = 0; i < c.text.length(); i++) {
+      cur.move_right();
+    }
+    cursors.push_back(cur.copy());
+    redid++;
+    if (redid > 1 && prev != c.text) {
+      break;
+    }
+    prev = c.text;
+  }
+
+  for (int i = 0; i < redid; i++) {
+    redo_patches.pop_back();
+  }
+
+  make_dirty();
+#endif
+}
+*/
+
+void Document::prepare_undo() {
+  bool add_new_entry = true;
+  if (entries.size()) {
+    HistoryEntryPtr last = entries.back();
+    if (last->patches.size() == 0) {
+      add_new_entry = false;
+    }
+  }
+
+  HistoryEntryPtr last;
+  if (add_new_entry) {
+    last = std::make_shared<HistoryEntry>();
+    entries.push_back(last);
+    buffer.flush_changes();
+    last->snapshot = buffer.create_snapshot();
+    return;
+  }
+
+  last = entries.back();
+  auto patch = buffer.get_inverted_changes(last->snapshot);
+
+  bool has_changes = false;
+  for (auto c : patch.get_changes()) {
+    has_changes = true;
+    last->patches.push_back(TextPatch{c.old_text->content.data(),
+                                      c.new_text->content.data(),
+                                      Range{c.old_start, c.old_end}});
+  }
+
+  // prepare for next one
+  if (has_changes) {
+    last = std::make_shared<HistoryEntry>();
+    entries.push_back(last);
+    buffer.flush_changes();
+    last->snapshot = buffer.create_snapshot();
+  }
+}
+
+void Document::undo() {
+  if (entries.size() == 0)
+    return;
+
+  HistoryEntryPtr last = entries.back();
+
+  while (last->patches.size() == 0) {
+    entries.pop_back();
+    if (entries.size() == 0)
+      return;
+    last = entries.back();
+  }
+
+  for (auto c : last->patches) {
+    buffer.set_text_in_range(c.range, c.new_text.data());
+  }
+
+  entries.pop_back();
+}
+
+void Document::redo() {}

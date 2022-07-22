@@ -29,7 +29,7 @@ public:
   std::string lang_id;
   std::vector<std::string> identifiers;
   std::string content;
-  
+
   static void run(TreeSitter *treesitter);
   void set_ready();
   void set_consumed();
