@@ -407,10 +407,12 @@ void draw_text_buffer(editor_ptr editor) {
     if (line >= view_start && line < view_end) {
       if (block->dirty) {
         if (doc->language && !doc->language->definition.isNull()) {
+          
           block->styles = Textmate::run_highlighter(
               (char *)s.str().c_str(), doc->language, Textmate::theme(),
               block.get(), doc->previous_block(block).get(),
               doc->next_block(block).get(), NULL);
+
           //&block->span_infos);
 
           // find brackets

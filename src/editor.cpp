@@ -239,7 +239,7 @@ bool editor_t::on_idle(int frame) {
   }
 
   if (frame == 1000) {
-    doc->prepare_undo();
+    doc->commit_undo();
   }
   return false;
 }

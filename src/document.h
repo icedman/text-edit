@@ -25,18 +25,14 @@ public:
   std::u16string old_text;
   std::u16string new_text;
   Range range;
+  Range new_range;
 };
-// std::vector<Redo> redo_patches;
 
 class HistoryEntry {
 public:
-  HistoryEntry();
-  ~HistoryEntry();
-
   int id;
   std::vector<Cursor> cursors;
   std::vector<TextPatch> patches;
-  TextBuffer::Snapshot *snapshot;
 };
 
 typedef std::shared_ptr<HistoryEntry> HistoryEntryPtr;
@@ -78,6 +74,7 @@ public:
   std::string file_path;
 
   TextBuffer buffer;
+  TextBuffer::Snapshot *undo_snapshot;
   TextBuffer::Snapshot *snapshot;
   std::vector<BlockPtr> blocks;
 
@@ -97,12 +94,7 @@ public:
   // history
   std::vector<HistoryEntryPtr> entries;
 
-  class Redo {
-  public:
-    std::u16string text;
-    Range range;
-  };
-  std::vector<Redo> redo_patches;
+  std::vector<TextPatch> redo_patches;
 
   language_info_ptr language;
   std::u16string comment_string;
@@ -121,6 +113,7 @@ public:
   Cursor &cursor();
 
   void prepare_undo();
+  void commit_undo();
 
   void move_up(bool anchor = false);
   void move_down(bool anchor = false);
