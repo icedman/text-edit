@@ -16,6 +16,5 @@
 * block collapse/folding
 
 ## todo
-* parsed tree
-* multi-buffers/doc/tabs
+* Improve rendering
 
