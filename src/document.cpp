@@ -1178,16 +1178,18 @@ void Document::undo() {
   entries.pop_back();
 
   Cursor cur = cursor();
-  cursors.clear();
 
-  for (auto c : last->patches) {
+  // for (auto c : last->patches) {
+  auto it = last->patches.rbegin();
+  while(it != last->patches.rend()) {
+    auto c = *it++;
     buffer.set_text_in_range(c.range, c.new_text.data());
-    if (cursors.size() == 0) {
+    // if (cursors.size() == 0) {
       cur.start = c.range.start;
       cur.end = cur.start;
+      cursors.clear();
       cursors.insert(cursors.begin(), cur.copy());
-    }
-
+    // }
     redo_patches.push_back(c);
   }
 
