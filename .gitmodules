@@ -1,0 +1,3 @@
+[submodule "libs/tm-parser"]
+	path = libs/tm-parser
+	url = git@github.com:icedman/tm-parser

@@ -965,8 +965,9 @@ int main(int argc, char **argv) {
   editor_ptr prev;
   bool running = true;
   while (running) {
-    if (!editors.editors.size())
+    if (!editors.editors.size()) {
       break;
+    }
 
     if (prev != editors.current_editor()) {
       editor = editors.current_editor();
@@ -1471,5 +1472,7 @@ int main(int argc, char **argv) {
          idx-- > 0) {
     delay(50);
   }
+
+  Textmate::shutdown();
   return 0;
 }
