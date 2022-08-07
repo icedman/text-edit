@@ -27,6 +27,27 @@ int fn = 0;
 int kw = 0;
 int var = 0;
 
+void init_renderer()
+{
+  setlocale(LC_ALL, "");
+
+  initscr();
+  raw();
+  keypad(stdscr, true);
+  noecho();
+  nodelay(stdscr, true);
+
+  if (use_system_colors) {
+    use_default_colors();
+  }
+  start_color();
+}
+
+void shutdown_renderer()
+{
+  endwin();
+}
+
 int color_index(int r, int g, int b) {
   return color_info_t::nearest_color_index(r, g, b);
 }
@@ -314,5 +335,87 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
     attroff(A_REVERSE);
     attroff(A_BOLD);
     attroff(A_UNDERLINE);
+  }
+}
+
+void _move(int x, int y)
+{
+  move(x, y);
+}
+
+void _attron(int attr)
+{
+  attron(attr);
+}
+
+void _attroff(int attr)
+{
+  attroff(attr);
+}
+
+void _clear()
+{
+  clear();
+}
+
+void _refresh()
+{
+  refresh();
+}
+
+void _addstr(const char *text)
+{
+  addstr(text);
+}
+
+void _addwstr(const wchar_t *text)
+{
+  addwstr(text);
+}
+
+void _addch(char ch)
+{
+  addch(ch);
+}
+
+void _clrtoeol()
+{
+  clrtoeol();
+}
+
+void _curs_set(int i)
+{
+  curs_set(i);
+}
+
+int _COLOR_PAIR(int i)
+{
+  return COLOR_PAIR(i);
+}
+
+void _underline(bool on)
+{
+  if (on) {
+    attron(A_UNDERLINE);
+  } else {
+    attroff(A_UNDERLINE);
+  }
+}
+
+void _reverse(bool on)
+{
+  if (on) {
+    attron(A_REVERSE);
+  } else {
+    attroff(A_REVERSE);
+  }
+}
+
+void _bold(bool on)
+{
+  if (on) {
+    attron(A_BOLD);
+  } else {
+    attroff(A_BOLD);
   }
 }
