@@ -9,8 +9,6 @@
 #include <sstream>
 #include <string>
 
-#include <curses.h>
-#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
@@ -37,7 +35,6 @@
 extern const wchar_t *symbol_tab;
 
 // theme
-extern bool use_system_colors;
 extern int fg;
 extern int bg;
 extern int hl;
@@ -71,23 +68,38 @@ void delay(int ms) {
 }
 
 void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
-                      const char *text, std::vector<textstyle_t> &styles) {
+                      const char *text, std::vector<textstyle_t> &styles, int height) {
   screen_row += view->computed.y;
   int screen_col = view->computed.x;
   int l = strlen(text);
+
+  if (screen_row >= view->computed.h) {
+    return;
+  }
 
   DocumentPtr doc = editor->doc;
   doc->cursor(); // ensure 1 cursor
   std::vector<Cursor> &cursors = doc->cursors;
 
   bool is_cursor_row = row == doc->cursor().start.row;
+  
+  for(int i=0; i<height; i++) {
+    if (screen_row + i > view->computed.h) {
+      break;
+    }
+
+    int pair = pair_for_color(is_cursor_row && i == 0 ? fg : cmt, is_cursor_row && i == 0, false);
+    _attron(_COLOR_PAIR(pair));
+    _move(screen_row + i, screen_col);
+    draw_clear(view->computed.w);
+    _attroff(_COLOR_PAIR(pair));
+  }
+
   int pair = pair_for_color(is_cursor_row ? fg : cmt, is_cursor_row, false);
-  attron(COLOR_PAIR(pair));
-  move(screen_row, screen_col);
-  draw_clear(view->computed.w);
-  move(screen_row, screen_col + view->computed.w - l - 1);
-  addstr(text);
-  attroff(COLOR_PAIR(pair));
+  _attron(_COLOR_PAIR(pair));
+  _move(screen_row, screen_col + view->computed.w - l - 1);
+  _addstr(text);
+  _attroff(_COLOR_PAIR(pair));
 }
 
 void draw_gutter(editor_ptr editor, view_ptr view) {
@@ -128,14 +140,18 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
       std::stringstream s;
       s << (computed_line + 1);
       draw_gutter_line(editor, view, (idx++) + offset_y, computed_line,
-                       s.str().c_str(), block->styles);
+                       s.str().c_str(), block->styles, block->line_height);
 
+      // todo.. bug
       if (block->line_height > 1) {
         offset_y += (block->line_height - 1);
-        for (int j = 0; j < block->line_height - 1; j++) {
-          move(offset_y + idx + j, view->computed.x);
-          draw_clear(view->computed.w);
-        }
+        // for (int j = 0; j < block->line_height - 1; j++) {
+        //   if (offset_y + idx + j >= view->computed.y + view->computed.h) {
+        //     break;
+        //   }
+        //   _move(offset_y + idx + j, view->computed.x);
+        //   draw_clear(view->computed.w);
+        // }
       }
     }
   }
@@ -156,8 +172,8 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
 
   screen_row += editor->computed.y;
   int screen_col = editor->computed.x;
-  move(screen_row, screen_col);
-  clrtoeol();
+  _move(screen_row, screen_col);
+  _clrtoeol();
 
   int l = strlen(text);
   block->line_length = l;
@@ -193,8 +209,8 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
       screen_col = editor->computed.x;
       screen_row++;
       *height = (*height) + 1;
-      move(screen_row, screen_col);
-      clrtoeol();
+      _move(screen_row, screen_col);
+      _clrtoeol();
     }
 
     block->line_height = *height;
@@ -217,7 +233,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
             if (!cursor.is_normalized()) {
               selected = false;
             }
-            attron(A_REVERSE);
+            _reverse(true);
           }
         }
         break;
@@ -300,7 +316,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     // }
 
     if (underline) {
-      attron(A_UNDERLINE);
+      _underline(true);
     }
 
     // render symbols
@@ -314,19 +330,19 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     }
 
     // render the character
-    attron(COLOR_PAIR(pair));
+    _attron(_COLOR_PAIR(pair));
     if (symbol != NULL) {
-      addwstr(symbol);
+      _addwstr(symbol);
     } else {
-      addch(ch);
+      _addch(ch);
     }
-    attroff(COLOR_PAIR(pair));
+    _attroff(_COLOR_PAIR(pair));
 
-    // attroff(A_BLINK);
-    // attroff(A_STANDOUT);
-    attroff(A_REVERSE);
-    attroff(A_BOLD);
-    attroff(A_UNDERLINE);
+    // _attroff(A_BLINK);
+    // _attroff(A_STANDOUT);
+    _reverse(false);
+    _bold(false);
+    _underline(false);
   }
 
   char spacer = ' ';
@@ -336,20 +352,20 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     // ss << "+ ";
     // ss << fold_size;
     // ss << " lines ";
-    attron(COLOR_PAIR(pair));
+    _attron(_COLOR_PAIR(pair));
     // addwstr(L"\u00b1");
-    addstr(ss.str().c_str());
-    attroff(COLOR_PAIR(pair));
+    _addstr(ss.str().c_str());
+    _attroff(_COLOR_PAIR(pair));
     l += ss.str().size();
     spacer = '-';
   }
 
   if (is_cursor_row || fold_size) {
-    move(screen_row, screen_col + l);
+    _move(screen_row, screen_col + l);
     for (int i = 0; i < editor->computed.w - l - scroll_x; i++) {
-      attron(COLOR_PAIR(pair));
-      addch(spacer);
-      attroff(COLOR_PAIR(pair));
+      _attron(_COLOR_PAIR(pair));
+      _addch(spacer);
+      _attroff(_COLOR_PAIR(pair));
     }
   }
 }
@@ -434,135 +450,9 @@ void draw_text_buffer(editor_ptr editor) {
 
       int line_height = 1;
 
-#if 1
       draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
                      block, &line_height);
-#else
-      int l = s.str().size();
-      int indent_size = count_indent_size(s.str());
-      int tab_size = editor->draw_tab_stops ? doc->tab_string.size() : 0;
 
-      std::vector<textstyle_t> extra;
-
-      // decorate search result
-      if (search) {
-        for (auto r : search->matches) {
-          optional<Range> res = intersect_row(r, computed_line, l);
-          if (res) {
-            textstyle_t style = {
-                (*res).start.column,
-                (*res).end.column - (*res).start.column,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                false,
-                false,
-                true,
-                false,
-            };
-            extra.push_back(style);
-          }
-        }
-      }
-
-      // selected
-      if (block_cursor) {
-        Cursor c = (*block_cursor).normalized();
-        if (c.end.column > 0) {
-          if (c.start.row == computed_line) {
-            textstyle_t style = {
-                c.start.column, 1,     0,     0,     0, 0, 0, 0, 0, 0, 1, 0,
-                false,          false, false, false,
-            };
-            extra.push_back(style);
-          }
-          if (c.end.row == computed_line) {
-            textstyle_t style = {
-                c.end.column - 1,
-                1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                1,
-                0,
-                false,
-                false,
-                false,
-                false,
-            };
-            extra.push_back(style);
-          }
-        }
-      }
-
-      // cursors
-      for (auto c : doc->cursors) {
-        if (c.start.row == computed_line) {
-          textstyle_t style = {
-              c.start.column,      1,     0,     0,     0,     0, 0, 0, 0, 0, 0,
-              editor->has_focus(), false, false, false, false,
-          };
-          extra.push_back(style);
-        }
-
-        // selected
-        Cursor cc = c.normalized();
-        optional<Range> res = intersect_row(cc, computed_line, l);
-        if (res) {
-          textstyle_t style = {
-              (*res).start.column,
-              (*res).end.column - (*res).start.column,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              1,
-              0,
-              false,
-              false,
-              false,
-              false,
-          };
-          extra.push_back(style);
-        }
-      }
-
-      // render symbols
-      if (tab_size > 0 && tab_size <= indent_size) {
-        for (int i = 0; i < indent_size; i += tab_size) {
-          textstyle_t style = {
-              i, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, true,
-          };
-          extra.push_back(style);
-        }
-      }
-
-      if (doc->cursor().start.row == computed_line) {
-        textstyle_t style = {
-            0, l, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, false, false, false, false,
-        };
-        extra.push_back(style);
-      }
-
-      draw_styled_text(editor, s.str().c_str(), (idx++) + offset_y, 0,
-                       block->styles, &extra, editor->wrap, &line_height);
-#endif
       block->line_height = line_height;
 
       if (line_height > 1) {
@@ -572,9 +462,9 @@ void draw_text_buffer(editor_ptr editor) {
   }
 
   for (int i = idx + offset_y; i < editor->computed.h; i++) {
-    move(editor->computed.y + i, editor->computed.x);
-    // addch('~')
-    clrtoeol();
+    _move(editor->computed.y + i, editor->computed.x);
+    // _addch('~')
+    _clrtoeol();
   }
 }
 
@@ -603,10 +493,10 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     ss << ",";
     ss << (*block_cursor).end.column;
     ss << "]";
-    attron(COLOR_PAIR(def));
-    move(view->computed.y + row++, view->computed.x);
-    addstr(ss.str().substr(0, view->computed.w).c_str());
-    attroff(COLOR_PAIR(def));
+    _attron(_COLOR_PAIR(def));
+    _move(view->computed.y + row++, view->computed.x);
+    _addstr(ss.str().substr(0, view->computed.w).c_str());
+    _attroff(_COLOR_PAIR(def));
   }
 
   for (auto node : nodes) {
@@ -633,10 +523,10 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
         cur.is_within(cursor.start.row, cursor.start.column)) {
       pair = sel;
     }
-    attron(COLOR_PAIR(pair));
-    move(view->computed.y + row++, view->computed.x);
-    addstr(ss.str().substr(0, view->computed.w).c_str());
-    attroff(COLOR_PAIR(pair));
+    _attron(_COLOR_PAIR(pair));
+    _move(view->computed.y + row++, view->computed.x);
+    _addstr(ss.str().substr(0, view->computed.w).c_str());
+    _attroff(_COLOR_PAIR(pair));
   }
 
   // for (auto f : doc->folds) {
@@ -644,7 +534,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
 
   BlockPtr block = doc->block_at(cursor.start.row);
   if (block) {
-    move(view->computed.y + row++, view->computed.x);
+    _move(view->computed.y + row++, view->computed.x);
     for (auto s : block->span_infos) {
       if (cursor.start.column >= s.start &&
           cursor.start.column < s.start + s.length) {
@@ -654,7 +544,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
         ss << (s.start + s.length);
         ss << " ";
         ss << s.scope;
-        addstr(ss.str().substr(0, view->computed.w).c_str());
+        _addstr(ss.str().substr(0, view->computed.w).c_str());
         break;
       }
     }
@@ -670,20 +560,20 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   //   ss << ",";
   //   ss << f.end.column;
   //   int pair = def;
-  //   attron(COLOR_PAIR(pair));
-  //   move(view->computed.y + row++, view->computed.x);
-  //   addstr(ss.str().substr(0, view->computed.w).c_str());
-  //   attroff(COLOR_PAIR(pair));
+  //   _attron(_COLOR_PAIR(pair));
+  //   _move(view->computed.y + row++, view->computed.x);
+  //   _addstr(ss.str().substr(0, view->computed.w).c_str());
+  //   _attroff(_COLOR_PAIR(pair));
   // }
   if (treesitter->reference_ready) {
-    move(view->computed.y + row++, view->computed.x);
-    addstr("reference ready");
+    _move(view->computed.y + row++, view->computed.x);
+    _addstr("reference ready");
     for (auto i : treesitter->identifiers) {
       int pair = def;
-      attron(COLOR_PAIR(pair));
-      move(view->computed.y + row++, view->computed.x);
-      addstr(i.substr(0, view->computed.w).c_str());
-      attroff(COLOR_PAIR(pair));
+      _attron(_COLOR_PAIR(pair));
+      _move(view->computed.y + row++, view->computed.x);
+      _addstr(i.substr(0, view->computed.w).c_str());
+      _attroff(_COLOR_PAIR(pair));
       if (view->computed.y + row > view->computed.h)
         break;
     }
@@ -691,8 +581,9 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
 }
 
 void draw_tabs(menu_ptr view, editors_t &editors) {
-  move(view->computed.y, view->computed.x); // not accurate
-  clrtoeol();
+  if (!view->show) return;
+  _move(view->computed.y, view->computed.x); // not accurate
+  _clrtoeol();
 
   int def = pair_for_color(cmt, false, false);
   int sel =
@@ -749,43 +640,43 @@ void draw_tabs(menu_ptr view, editors_t &editors) {
   int center = 0;
   if (view->computed.w > t.size()) {
     center = (view->computed.w / 2) - (t.size() / 2);
-    move(view->computed.y, view->computed.x + center);
+    _move(view->computed.y, view->computed.x + center);
   }
 
-  attron(COLOR_PAIR(def));
-  addstr(t.c_str());
-  attroff(COLOR_PAIR(def));
+  _attron(_COLOR_PAIR(def));
+  _addstr(t.c_str());
+  _attroff(_COLOR_PAIR(def));
 
   // selected
-  move(view->computed.y, view->computed.x + sx1 - s + center);
-  attron(COLOR_PAIR(sel_border));
-  addch(brackets[0]);
-  attroff(COLOR_PAIR(sel_border));
-  attron(COLOR_PAIR(sel));
-  addstr(view->items[view->selected].value.c_str());
-  attroff(COLOR_PAIR(sel));
-  attron(COLOR_PAIR(sel_border));
-  addch(brackets[1]);
-  attroff(COLOR_PAIR(sel_border));
+  _move(view->computed.y, view->computed.x + sx1 - s + center);
+  _attron(_COLOR_PAIR(sel_border));
+  _addch(brackets[0]);
+  _attroff(_COLOR_PAIR(sel_border));
+  _attron(_COLOR_PAIR(sel));
+  _addstr(view->items[view->selected].value.c_str());
+  _attroff(_COLOR_PAIR(sel));
+  _attron(_COLOR_PAIR(sel_border));
+  _addch(brackets[1]);
+  _attroff(_COLOR_PAIR(sel_border));
 
   view->cursor = {view->computed.x + sx1 - s + center, view->computed.y};
 }
 
-bool get_dimensions() {
+bool get_dimensions(int *width, int *height) {
   static struct winsize ws;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
   int _width = ws.ws_col;
   int _height = ws.ws_row;
-  if (_width != width || _height != height) {
-    width = _width;
-    height = _height;
+  if (_width != *width || _height != *height) {
+    *width = _width;
+    *height = _height;
     return true;
   }
   return false;
 }
 
 void layout(view_ptr root) {
-  clear();
+  _clear();
   int margin = 0;
   root->layout(
       rect_t{margin, margin, width - (margin * 2), height - (margin * 2)});
@@ -933,28 +824,17 @@ int main(int argc, char **argv) {
     return true;
   };
 
-  explorer->show = files->root->name.size() > 0;
+  explorer->show = false; // files->root->name.size() > 0; 
 
-  setlocale(LC_ALL, "");
-
-  initscr();
-  raw();
-  keypad(stdscr, true);
-  noecho();
-  nodelay(stdscr, true);
+  init_renderer();
 
   // printf("\x1b[?2004h");
-
-  if (use_system_colors) {
-    use_default_colors();
-  }
-  start_color();
   update_colors();
 
-  curs_set(0);
-  clear();
+  _curs_set(0);
+  _clear();
 
-  get_dimensions();
+  get_dimensions(&width, &height);
 
   std::stringstream message;
   message << "Welcome to text-edit";
@@ -968,6 +848,8 @@ int main(int argc, char **argv) {
     if (!editors.editors.size()) {
       break;
     }
+
+    tabs->show = editors.editors.size() > 1;
 
     if (prev != editors.current_editor()) {
       editor = editors.current_editor();
@@ -1168,9 +1050,9 @@ int main(int argc, char **argv) {
     draw_menu(menu);
 
     // blit
-    move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
-    refresh();
-    curs_set(1);
+    _move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
+    _refresh();
+    _curs_set(1);
 
     // input
     int ch = -1;
@@ -1216,7 +1098,7 @@ int main(int argc, char **argv) {
       }
 
       // check dimensions
-      if (frames == 1800 && get_dimensions()) {
+      if (frames == 1800 && get_dimensions(&width, &height)) {
         layout(root);
         editor->doc->make_dirty();
         break;
@@ -1236,12 +1118,12 @@ int main(int argc, char **argv) {
         delay(50);
         if (idle > 32) {
           delay(250);
-          curs_set(0);
+          _curs_set(0);
         }
       }
     }
 
-    curs_set(0);
+    _curs_set(0);
     if (ch == 27) {
       key_sequence = "escape";
       ch = -1;
@@ -1464,7 +1346,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  endwin();
+  shutdown_renderer();
 
   // graceful exit... shutting down...
   int idx = 20;

@@ -317,7 +317,8 @@ static int readEscapeSequence(std::string &keySequence) {
       keySequence = "insert";
       return K_INSERT;
     }
-    printf("escape+%c+%c\n", seq[0], seq[1]);
+
+    // printf("escape+%c+%c\n", seq[0], seq[1]);
   }
 
   /* ESC O sequences. */

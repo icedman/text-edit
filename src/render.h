@@ -7,6 +7,9 @@
 
 enum color_pair_e { NORMAL = 0, SELECTED, COMMENT };
 
+void init_renderer();
+void shutdown_renderer();
+
 int color_index(int r, int g, int b);
 int pair_for_color(int colorIdx, bool selected = false,
                    bool highlighted = false);
@@ -23,5 +26,20 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
                       std::vector<textstyle_t> &styles,
                       std::vector<textstyle_t> *extra_styles = 0,
                       bool wrap = false, int *height = 0);
+
+void _move(int x, int y);
+void _attron(int attr);
+void _attroff(int attr);
+void _clear();
+void _refresh();
+void _addstr(const char *text);
+void _addwstr(const wchar_t *text);
+void _addch(char ch);
+void _clrtoeol();
+void _curs_set(int i);
+void _underline(bool on);
+void _reverse(bool on);
+void _bold(bool on);
+int _COLOR_PAIR(int i);
 
 #endif //  TE_RENDER_H
