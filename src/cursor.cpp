@@ -10,6 +10,15 @@ bool compare_range(Range a, Range b) {
   return a.start.column < b.start.column;
 }
 
+bool compare_range_reverse(Range a, Range b) {
+  size_t aline = a.start.row;
+  size_t bline = b.start.row;
+  if (aline != bline) {
+    return aline > bline;
+  }
+  return a.start.column > b.start.column;
+}
+
 optional<Range> intersect_row(Range range, int row, int length) {
   optional<Range> res;
   if (range.start.row > row || range.end.row < row)
@@ -342,6 +351,7 @@ void Cursor::insert_text(std::u16string text) {
   if (size_diff > 0) {
     r = size_diff;
   }
+
   // document->cursor_markers.splice(range.start, {0, 0}, {r, text.size()});
   document->update_markers(range.start,
                            {0, range.end.column - range.start.column},

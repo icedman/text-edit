@@ -191,6 +191,8 @@ void Document::go_to_line(int line) {
 
 void Document::insert_text(std::u16string text) {
   prepare_undo();
+      
+  std::sort(cursors.begin(), cursors.end(), compare_range_reverse);
   for (auto &c : cursors) {
     begin_cursor_markers(c);
     c.insert_text(text);
@@ -268,6 +270,7 @@ void Document::duplicate_selection() {
 }
 
 void Document::duplicate_line() {
+  prepare_undo();
   for (auto &c : cursors) {
     begin_cursor_markers(c);
     std::u16string r = u"\n";
@@ -279,6 +282,7 @@ void Document::duplicate_line() {
     c.insert_text(r);
     end_cursor_markers(c);
   }
+  commit_undo();
 }
 
 void Document::add_cursor_from_selected_word() {
@@ -1179,17 +1183,14 @@ void Document::undo() {
 
   Cursor cur = cursor();
 
-  // for (auto c : last->patches) {
   auto it = last->patches.rbegin();
   while(it != last->patches.rend()) {
     auto c = *it++;
     buffer.set_text_in_range(c.range, c.new_text.data());
-    // if (cursors.size() == 0) {
-      cur.start = c.range.start;
-      cur.end = cur.start;
-      cursors.clear();
-      cursors.insert(cursors.begin(), cur.copy());
-    // }
+    cur.start = c.range.start;
+    cur.end = cur.start;
+    cursors.clear();
+    cursors.insert(cursors.begin(), cur.copy());
     redo_patches.push_back(c);
   }
 

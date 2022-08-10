@@ -49,7 +49,7 @@ std::map<std::string, Command> commands = {
     {"ctrl+d", Command{"select_word", ""}},
 
     {"alt+d", Command{"duplicate_selection", ""}},
-    {"ctrl+shift+down", Command{"duplicate_line", ""}},
+    {"alt+l", Command{"duplicate_line", ""}},
 
     {"ctrl+s", Command{"save", ""}},
     {"alt+s", Command{"save_as", ""}},

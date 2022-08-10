@@ -7,6 +7,7 @@
 
 bool is_point_within_range(Point p, Range r);
 bool compare_range(Range a, Range b);
+bool compare_range_reverse(Range a, Range b);
 int count_indent_size(std::string text);
 int count_indent_size(std::u16string text);
 optional<Range> intersect_row(Range range, int row, int length);
