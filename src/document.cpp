@@ -1081,8 +1081,10 @@ optional<Cursor> Document::span_cursor(Cursor cursor) {
 
 void Document::on_input(char last_character) {
   if (last_character == '\n') {
+    if (cursors.size() == 1) {
+      auto_indent();
+    }
     commit_undo();
-    auto_indent();
     return;
   }
 

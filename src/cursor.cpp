@@ -358,6 +358,9 @@ void Cursor::insert_text(std::u16string text) {
                            {r, text.size()});
   document->update_blocks(range.start.row, size_diff);
   clear_selection();
+
+  if (document->cursors.size() > 1 && text[0] == '\n') return;
+
   for (int i = 0; i < text.size(); i++) {
     move_right();
   }
