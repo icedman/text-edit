@@ -97,6 +97,8 @@ void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
 
   int pair = pair_for_color(is_cursor_row ? fg : cmt, is_cursor_row, false);
   _attron(_COLOR_PAIR(pair));
+  _move(screen_row, screen_col);
+  draw_clear(view->computed.w);
   _move(screen_row, screen_col + view->computed.w - l - 1);
   _addstr(text);
   _attroff(_COLOR_PAIR(pair));
@@ -145,13 +147,10 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
       // todo.. bug
       if (block->line_height > 1) {
         offset_y += (block->line_height - 1);
-        // for (int j = 0; j < block->line_height - 1; j++) {
-        //   if (offset_y + idx + j >= view->computed.y + view->computed.h) {
-        //     break;
-        //   }
-        //   _move(offset_y + idx + j, view->computed.x);
-        //   draw_clear(view->computed.w);
-        // }
+        for (int j = 0; j < block->line_height - 1; j++) {
+          _move(offset_y + idx + j, view->computed.x);
+          draw_clear(view->computed.w);
+        }
       }
     }
   }
