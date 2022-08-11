@@ -129,12 +129,18 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
   if (start < 0)
     start = 0;
 
+  int docSize = doc->size();
+
   for (int i = 0; i < vh * 2; i++) {
     if (idx + offset_y > editor->computed.h)
       break;
 
     int line = start + i;
     int computed_line = doc->computed_line(line);
+
+    if (computed_line >= docSize) {
+      break;
+    }
 
     BlockPtr block = doc->block_at(computed_line);
     if (!block) {
@@ -401,12 +407,18 @@ void draw_text_buffer(editor_ptr editor) {
   if (start < 0)
     start = 0;
 
+  int docSize = doc->size();
+
   for (int i = 0; i < vh * 2; i++) {
     if (idx + offset_y > editor->computed.h)
       break;
 
     int line = start + i;
     int computed_line = doc->computed_line(line);
+
+    if (computed_line >= docSize) {
+      break;
+    }
 
     BlockPtr block = doc->block_at(computed_line);
     if (!block) {
@@ -896,6 +908,15 @@ int main(int argc, char **argv) {
               explorer->has_focus() ? pair_for_color(fn, false, true)
                                     : pair_for_color(cmt, false, false));
 
+#ifdef VIM_MODE
+    int cl = vimCursorGetLine();
+    int cc = vimCursorGetColumn();
+    Cursor& _cur = doc->cursor();
+    _cur.start.row = cl-1;
+    _cur.start.column = cc;
+    _cur.end = _cur.start;
+#endif
+
     draw_tabs(tabs, editors);
     for (auto e : editors.editors) {
       draw_text_buffer(e);
@@ -1061,15 +1082,6 @@ int main(int argc, char **argv) {
     draw_menu(menu);
 
     // blit
-
-#ifdef VIM_MODE
-    int cl = vimCursorGetLine();
-    int cc = vimCursorGetColumn();
-    doc->cursor().start.row = cl-1;
-    doc->cursor().start.column = cc;
-    doc->cursor().end = doc->cursor().start;
-#endif
-
     _move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
 
     _refresh();
@@ -1145,7 +1157,7 @@ int main(int argc, char **argv) {
     }
 
 #ifdef VIM_MODE
-    size_t start_len = vimBufferGetLineCount((buf_T*)(doc->buf));
+    size_t start_len = doc->size();
     cl = vimCursorGetLine();
 
     bool didEdit = false;
@@ -1163,14 +1175,16 @@ int main(int argc, char **argv) {
     }
 
     if (didEdit && (vimGetMode() & INSERT) == INSERT) {
-      size_t end_len = vimBufferGetLineCount((buf_T*)(doc->buf));
+      size_t end_len = doc->size();
       int diff = (end_len - start_len);
       if (diff <= 0) {
         diff = 1;
       }
       int ncl = vimCursorGetLine();
       doc->update_blocks(cl-1, diff);
-      doc->update_blocks(ncl-1, 1);
+      if (cl != ncl) {
+        doc->update_blocks(ncl-1, 1);
+      }
       continue;
     }
 #endif

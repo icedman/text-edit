@@ -853,6 +853,7 @@ std::u16string Document::subsequence_text() {
 }
 
 void Document::run_autocomplete() {
+#ifndef VIM_MODE
   if (cursors.size() == 1) {
     std::u16string sub = subsequence_text();
     if (sub.size() < 3)
@@ -873,6 +874,7 @@ void Document::run_autocomplete() {
       AutoComplete::run(autocomplete.get());
     }
   }
+#endif
 }
 
 AutoCompletePtr Document::autocomplete() {
@@ -971,6 +973,7 @@ void Document::clear_search(bool force) {
 }
 
 void Document::run_treesitter() {
+#ifndef VIM_MODE
   if (!language)
     return;
 
@@ -983,6 +986,7 @@ void Document::run_treesitter() {
   treesitter->snapshot = buffer.create_snapshot();
   treesitters.push_back(treesitter);
   TreeSitter::run(treesitter.get());
+#endif
 }
 
 TreeSitterPtr Document::treesitter() {

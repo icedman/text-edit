@@ -5,12 +5,6 @@ option(
 )
 
 option(
-  'build_textmate',
-  type: 'boolean', value: true,
-  description: 'build textmate'
-)
-
-option(
   'build_curses',
   type: 'boolean', value: true,
   description: 'build curses-based app'

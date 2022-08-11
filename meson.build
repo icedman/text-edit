@@ -11,14 +11,16 @@ add_global_arguments('-D_XOPEN_SOURCE_EXTENDED=1', language: 'cpp')
 add_global_arguments('-Wno-sign-compare', language: 'cpp')
 add_global_arguments('-Wno-unused-variable', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'cpp')
-add_global_arguments('-Wno-unused-parameter', language: 'c')
 add_global_arguments('-DNO_TERM=1', language: 'cpp')
-add_global_arguments('-DNO_TERM=1', language: 'c')
 add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
-add_global_arguments('-DHAVE_CONFIG_H=1', language: 'c')
 add_global_arguments('-fpermissive', language: 'cpp')
-add_global_arguments('-fpermissive', language: 'c')
+
 add_global_arguments('-DVIM_MODE=1', language: 'cpp')
+
+add_global_arguments('-Wno-unused-parameter', language: 'c')
+add_global_arguments('-DNO_TERM=1', language: 'c')
+add_global_arguments('-DHAVE_CONFIG_H=1', language: 'c')
+add_global_arguments('-fpermissive', language: 'c')
 
 superstring_files = [
     'libs/superstring/src/core/encoding-conversion.cc',
@@ -183,10 +185,6 @@ tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-javascript/s
 tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-json/src/parser.c'
 tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-python/src/parser.c'
 tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-python/src/scanner.cc'
-
-if get_option('build_textmate')
-    add_global_arguments('-DTEXTMATE_ENABLED=1', language: 'cpp')
-endif
 
 vim_files = [
     'libs/libvim/src/arabic.c',
