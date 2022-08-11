@@ -7,6 +7,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#include <map>
+
 // if != 0, then there is data to be read on stdin
 int kbhit(int timeout) {
   // timeout structure passed into select
@@ -391,4 +393,23 @@ int readKey(std::string &keySequence) {
     }
   }
   return -1;
+}
+
+std::map<std::string, std::string> remap_table = {
+  { "left", "<LEFT>" },
+  { "right", "<RIGHT>" },
+  { "up", "<UP>" },
+  { "down", "<DOWN>" },
+  { "enter", "<ENTER>" },
+  { "backspace", "<BACKSPACE>" },
+  { "delete", "<DEL>" },
+  { "escape", "<ESC>" },
+};
+
+std::string remapKey(std::string &keySequence)
+{
+  if (remap_table.contains(keySequence)) {
+    return remap_table[keySequence];
+  }
+  return "";
 }

@@ -12,6 +12,13 @@ add_global_arguments('-Wno-sign-compare', language: 'cpp')
 add_global_arguments('-Wno-unused-variable', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'c')
+add_global_arguments('-DNO_TERM=1', language: 'cpp')
+add_global_arguments('-DNO_TERM=1', language: 'c')
+add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
+add_global_arguments('-DHAVE_CONFIG_H=1', language: 'c')
+add_global_arguments('-fpermissive', language: 'cpp')
+add_global_arguments('-fpermissive', language: 'c')
+add_global_arguments('-DVIM_MODE=1', language: 'cpp')
 
 superstring_files = [
     'libs/superstring/src/core/encoding-conversion.cc',
@@ -181,12 +188,104 @@ if get_option('build_textmate')
     add_global_arguments('-DTEXTMATE_ENABLED=1', language: 'cpp')
 endif
 
+vim_files = [
+    'libs/libvim/src/arabic.c',
+    'libs/libvim/src/autocmd.c',
+    'libs/libvim/src/buffer.c',
+    'libs/libvim/src/change.c',
+    'libs/libvim/src/blob.c',
+    'libs/libvim/src/debugger.c',
+    'libs/libvim/src/dict.c',
+    'libs/libvim/src/diff.c',
+    'libs/libvim/src/digraph.c',
+    'libs/libvim/src/edit.c',
+    'libs/libvim/src/eval.c',
+    'libs/libvim/src/evalfunc.c',
+    'libs/libvim/src/ex_cmds.c',
+    'libs/libvim/src/ex_cmds2.c',
+    'libs/libvim/src/ex_docmd.c',
+    'libs/libvim/src/ex_eval.c',
+    'libs/libvim/src/ex_getln.c',
+    'libs/libvim/src/fileio.c',
+    'libs/libvim/src/findfile.c',
+    'libs/libvim/src/fold.c',
+    'libs/libvim/src/getchar.c',
+    'libs/libvim/src/hashtab.c',
+    'libs/libvim/src/indent.c',
+    'libs/libvim/src/libvim.c',
+    'libs/libvim/src/list.c',
+    'libs/libvim/src/mark.c',
+    'libs/libvim/src/memline.c',
+    'libs/libvim/src/message2.c',
+    'libs/libvim/src/misc1.c',
+    'libs/libvim/src/misc2.c',
+    'libs/libvim/src/move.c',
+    'libs/libvim/src/mbyte.c',
+    'libs/libvim/src/normal.c',
+    'libs/libvim/src/ops.c',
+    'libs/libvim/src/option.c',
+    'libs/libvim/src/os_unix.c',
+    'libs/libvim/src/auto/pathdef.c',
+    'libs/libvim/src/pty.c',
+    'libs/libvim/src/quickfix.c',
+    'libs/libvim/src/regexp.c',
+    'libs/libvim/src/screen.c',
+    'libs/libvim/src/sds.c',
+    'libs/libvim/src/search.c',
+    'libs/libvim/src/sha256.c',
+    'libs/libvim/src/sign.c',
+    'libs/libvim/src/state_insert_literal.c',
+    'libs/libvim/src/state_machine.c',
+    'libs/libvim/src/syntax.c',
+    'libs/libvim/src/tag.c',
+    'libs/libvim/src/term.c',
+    'libs/libvim/src/ui.c',
+    'libs/libvim/src/undo.c',
+    'libs/libvim/src/usercmd.c',
+    'libs/libvim/src/userfunc.c',
+    'libs/libvim/src/version.c',
+    'libs/libvim/src/window.c',
+    # $(GUI_OBJ) \,
+    # $(LUA_OBJ) \,
+    # $(MZSCHEME_OBJ) \,
+    # $(PERL_OBJ) \,
+    # $(PYTHON_OBJ) \,
+    # $(PYTHON3_OBJ) \,
+    # $(RUBY_OBJ) \,
+    # $(OS_EXTRA_OBJ) \,
+    # $(CHANNEL_OBJ) \,
+    'libs/libvim/src/channel.c',
+    # $(XDIFF_OBJS),
+# XDIFF_OBJS
+    'libs/libvim/src/xdiff/xdiffi.c',
+    'libs/libvim/src/xdiff/xemit.c',
+    'libs/libvim/src/xdiff/xprepare.c',
+    'libs/libvim/src/xdiff/xutils.c',
+    'libs/libvim/src/xdiff/xhistogram.c',
+    'libs/libvim/src/xdiff/xpatience.c',
+#  OBJ_MAIN
+    'libs/libvim/src/charset.c',
+    'libs/libvim/src/json.c',
+    'libs/libvim/src/main.c',
+    'libs/libvim/src/memfile.c',
+    'libs/libvim/src/message.c'
+]
+
+vim_includes = [
+    'libs/libvim/src',
+    'libs/libvim/src/proto',
+    'libs/libvim/src/xdiff'
+]
+
 curses_dep = dependency('ncursesw', required: false, disabler: true)
 if not curses_dep.found()
   curses_root = get_option('curses_root')
   curses_lib = cc.find_library('cursesw', dirs : curses_root, required : false, disabler: true)
   curses_dep = declare_dependency(include_directories: curses_root, dependencies: curses_lib)
 endif
+
+math_lib = cc.find_library('m', required : false, disabler: true)
+math_dep = declare_dependency(dependencies: math_lib)
 
 if get_option('build_curses')
 executable('text-edit',
@@ -212,6 +311,7 @@ executable('text-edit',
     tm_parser_files,
     tree_sitter_files,
     tree_sitter_grammar_files,
+    vim_files,
     include_directories: [
         'src',
         tm_parser_includes,
@@ -219,9 +319,10 @@ executable('text-edit',
         tinyxml2_includes,
         onigmo_includes,
         superstring_includes,
-        tree_sitter_includes
+        tree_sitter_includes,
+        vim_includes
     ],
-    dependencies: [ curses_dep ]
+    dependencies: [ curses_dep, math_dep ]
 )
 endif
 

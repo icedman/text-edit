@@ -31,6 +31,10 @@
 
 #include "render.h"
 
+extern "C" {
+  #include "libvim.h"
+}
+
 // symbols
 extern const wchar_t *symbol_tab;
 
@@ -410,14 +414,18 @@ void draw_text_buffer(editor_ptr editor) {
       break;
     }
 
-    optional<std::u16string> row = text.line_for_row(computed_line);
-
     // expensive?
     std::stringstream s;
-    if (row) {
-      s << u16string_to_string(*row);
+#ifdef VIM_MODE
+      char *_buf = (char*)vimBufferGetLine((buf_T*)(doc->buf), computed_line+1);
+      s << _buf;
+#else
+      optional<std::u16string> row = text.line_for_row(computed_line);
+      if (row) {
+        s << u16string_to_string(*row);
+      }
+#endif
       s << " ";
-    }
 
     if (line >= view_start && line < view_end) {
       if (block->dirty) {
@@ -717,6 +725,10 @@ int main(int argc, char **argv) {
   if (argc > 1) {
     last_arg = argc - 1;
   }
+
+  vimInit(argc, argv);
+  win_setwidth(5);
+  win_setheight(100);
 
   const char *defaultTheme = "Monokai";
   const char *argTheme = defaultTheme;
@@ -1049,7 +1061,17 @@ int main(int argc, char **argv) {
     draw_menu(menu);
 
     // blit
+
+#ifdef VIM_MODE
+    int cl = vimCursorGetLine();
+    int cc = vimCursorGetColumn();
+    doc->cursor().start.row = cl-1;
+    doc->cursor().start.column = cc;
+    doc->cursor().end = doc->cursor().start;
+#endif
+
     _move(view_t::input_focus->cursor.y, view_t::input_focus->cursor.x);
+
     _refresh();
     _curs_set(1);
 
@@ -1121,6 +1143,37 @@ int main(int argc, char **argv) {
         }
       }
     }
+
+#ifdef VIM_MODE
+    size_t start_len = vimBufferGetLineCount((buf_T*)(doc->buf));
+    cl = vimCursorGetLine();
+
+    bool didEdit = false;
+
+    if (key_sequence == "") {
+      char seq[] = { (char)ch, 0, 0, 0, 0 };
+      vimKey((unsigned char*)seq);
+      didEdit = true;
+    } else  {
+      std::string remapped = remapKey(key_sequence);
+      if (remapped != "") {
+        vimKey((unsigned char*)remapped.c_str());
+        didEdit = true;
+      }
+    }
+
+    if (didEdit && (vimGetMode() & INSERT) == INSERT) {
+      size_t end_len = vimBufferGetLineCount((buf_T*)(doc->buf));
+      int diff = (end_len - start_len);
+      if (diff <= 0) {
+        diff = 1;
+      }
+      int ncl = vimCursorGetLine();
+      doc->update_blocks(cl-1, diff);
+      doc->update_blocks(ncl-1, 1);
+      continue;
+    }
+#endif
 
     _curs_set(0);
     if (ch == 27) {

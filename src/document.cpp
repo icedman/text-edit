@@ -15,6 +15,10 @@
 
 static std::u16string clipboard_data;
 
+extern "C" {
+  #include "libvim.h"
+}
+
 Block::Block()
     : block_data_t(), line(0), line_height(1), line_length(0), dirty(true) {}
 
@@ -26,7 +30,7 @@ void Block::make_dirty() {
   line_length = 0;
 }
 
-Document::Document() : snapshot(0), undo_snapshot(0), insert_mode(true) {}
+Document::Document() : snapshot(0), undo_snapshot(0), insert_mode(true), buf(0) {}
 
 Document::~Document() {
   if (snapshot) {
@@ -113,6 +117,10 @@ void Document::set_language(language_info_ptr lang) {
 bool Document::load(std::string path) {
   file_path = path;
   name = base_name(path);
+
+#ifdef VIM_MODE
+  buf = (void*)vimBufferOpen((unsigned char*)path.c_str(), 1, 0);
+#endif
 
   std::ifstream t(path);
   std::stringstream buffer;
@@ -533,7 +541,14 @@ int Document::computed_size() {
   return l;
 }
 
-int Document::size() { return buffer.extent().row + 1; }
+int Document::size() {
+#ifdef VIM_MODE
+  if (!buf) return 0;
+  return vimBufferGetLineCount((buf_T*)(buf));
+#else
+  return buffer.extent().row + 1;
+#endif
+}
 
 BlockPtr Document::block_at(int line) {
 

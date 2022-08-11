@@ -84,6 +84,9 @@ public:
   MarkerIndex fold_markers;
   MarkerIndex undo_markers;
 
+  // vim
+  void *buf;
+
   // background services
   std::u16string autocomplete_substring;
   std::map<std::u16string, AutoCompletePtr> autocompletes;

@@ -59,5 +59,6 @@ enum KEY_ACTION {
 
 int kbhit(int timeout = 500);
 int readKey(std::string &keySequence);
+std::string remapKey(std::string &keySequence);
 
 #endif // TE_KEYINPUT_H;
