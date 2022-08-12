@@ -28,6 +28,7 @@
 #include "input.h"
 #include "ui.h"
 #include "view.h"
+#include "util.h"
 
 #include "render.h"
 
@@ -191,10 +192,10 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height = 0) {
   std::vector<textstyle_t> &styles = block->styles;
 
-  for(auto style : styles) {
-    std::string str(text + style.start, style.length);
-    block->style_cache[str] = style;
-  }
+  // for(auto style : styles) {
+  //   std::string str(text + style.start, style.length);
+  //   block->style_cache[str] = style;
+  // }
 
   int scroll_x = editor->scroll.x;
   int scroll_y = editor->scroll.y;
@@ -468,16 +469,12 @@ void draw_text_buffer(editor_ptr editor) {
     if (line >= view_start && line < view_end) {
       if (block->dirty) {
         if (doc->language && !doc->language->definition.isNull()) {
-          
-          // if (block->styles.size() == 0) {
+
             block->styles = Textmate::run_highlighter(
                 (char *)s.str().c_str(), doc->language, Textmate::theme(),
                 block.get(), doc->previous_block(block).get(),
                 doc->next_block(block).get(), NULL);
-          //   block->style_cache.clear();
-          // } else if (block->style_cache.size() > 2) {
-          //   block->styles = build_style_from_cache(block, (char *)s.str().c_str());
-          // }
+            // block->style_cache.clear();
 
           //&block->span_infos);
 
@@ -768,6 +765,8 @@ int main(int argc, char **argv) {
   if (argc > 1) {
     last_arg = argc - 1;
   }
+
+  initLog();
 
   vimInit(argc, argv);
   win_setwidth(5);
@@ -1191,30 +1190,45 @@ int main(int argc, char **argv) {
     size_t start_len = doc->size();
     cl = vimCursorGetLine();
 
-    bool didEdit = false;
+    bool didVimInput = false;
 
-    if (key_sequence == "") {
+    if (key_sequence == "" && ch != -1) {
       char seq[] = { (char)ch, 0, 0, 0, 0 };
       vimKey((unsigned char*)seq);
-      didEdit = true;
+      // log("%c %d\n", ch, ch);
+      didVimInput = true;
     } else  {
       std::string remapped = remapKey(key_sequence);
       if (remapped != "") {
         vimKey((unsigned char*)remapped.c_str());
-        didEdit = true;
+        didVimInput = true;
       }
     }
 
-    if (didEdit && (vimGetMode() & INSERT) == INSERT) {
+    if (didVimInput) {
       size_t end_len = doc->size();
-      int diff = (end_len - start_len);
-      if (diff <= 0) {
-        diff = 1;
-      }
       int ncl = vimCursorGetLine();
-      doc->update_blocks(cl-1, diff);
-      if (cl != ncl) {
-        doc->update_blocks(ncl-1, 1);
+      BlockPtr block = doc->block_at(ncl-1);
+      if (block) {
+        block->make_dirty();
+      }
+
+      int diff = end_len - start_len;
+      // log("%d %d >>%d\n", cl, ncl, diff);
+      if (diff > 0) {
+        for(int i=0; i<diff; i++) {
+          doc->add_block_at(ncl);
+        }
+      } else if (diff < 0) {
+        for(int i=0; i<-diff; i++) {
+          doc->erase_block_at(ncl);
+        }
+        // for(int i=0; i<-diff; i++) {
+        //   BlockPtr block = doc->block_at(ncl+i-1);
+        //   if (block) {
+        //     block->make_dirty();
+        //   }
+        // }
       }
       continue;
     }

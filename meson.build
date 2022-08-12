@@ -16,6 +16,7 @@ add_global_arguments('-DHAVE_CONFIG_H=1', language: 'cpp')
 add_global_arguments('-fpermissive', language: 'cpp')
 
 add_global_arguments('-DVIM_MODE=1', language: 'cpp')
+add_global_arguments('-DENABLE_LOG=1', language: 'cpp')
 
 add_global_arguments('-Wno-unused-parameter', language: 'c')
 add_global_arguments('-DNO_TERM=1', language: 'c')
@@ -134,7 +135,6 @@ tm_parser_files = [
     'libs/tm-parser/textmate/scopes/scope.cpp',
     'libs/tm-parser/textmate/scopes/types.cpp',
     'libs/tm-parser/textmate/theme/theme.cpp',
-    'libs/tm-parser/textmate/theme/util.cpp',
     'libs/tm-parser/textmate/extensions/util.cpp',
     'libs/tm-parser/textmate/extensions/extension.cpp',
     'libs/tm-parser/textmate/resources/grammars.cpp',
