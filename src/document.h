@@ -55,6 +55,7 @@ public:
   bool dirty;
 
   std::vector<textstyle_t> styles;
+  std::map<std::string, textstyle_t> style_cache;
   std::vector<span_info_t> span_infos;
 
   std::vector<Range> words;
