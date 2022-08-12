@@ -149,7 +149,7 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
       break;
     }
 
-    if (line >= view_start && line < view_end) {
+    if (line >= view_start && line <= view_end) {
       std::stringstream s;
       s << (computed_line + 1);
       draw_gutter_line(editor, view, (idx++) + offset_y, computed_line,
@@ -759,6 +759,38 @@ void close_current_editor(editors_t &editors, view_ptr view) {
   view_t::input_focus = editors.current_editor();
 }
 
+// #define MAX_TEST_MESSAGE 128
+// char_u lastMessage[MAX_TEST_MESSAGE] = "";
+// char_u lastTitle[MAX_TEST_MESSAGE] = "";
+// msgPriority_T lastPriority;
+
+std::stringstream message;
+
+void onMessage(char_u *title, char_u *msg, msgPriority_T priority)
+{
+  log("onMessage - title: |%s| contents: |%s| %d", title, msg, priority);
+  // assert(strlen(msg) < MAX_TEST_MESSAGE);
+  // assert(strlen(title) < MAX_TEST_MESSAGE);
+  // strcpy((char*)lastMessage, (const unsigned char*)msg);
+  // strcpy((char*)lastTitle, (const unsigned char*)title);
+  // lastPriority = priority;
+  message.str("");
+  if (strlen(title)) {
+    message << title << ": ";
+  }
+  message << msg;
+};
+
+
+static bool running = true;
+
+void onQuit(buf_T *buffer, int force)
+{
+  if (force || !vimBufferGetModified(buffer)) {
+    running = false;
+  }
+}
+
 int main(int argc, char **argv) {
   int last_arg = 0;
   std::string file_path;
@@ -771,6 +803,9 @@ int main(int argc, char **argv) {
   vimInit(argc, argv);
   win_setwidth(5);
   win_setheight(100);
+
+  vimSetQuitCallback(&onQuit);
+  vimSetMessageCallback(&onMessage);
 
   const char *defaultTheme = "Monokai";
   const char *argTheme = defaultTheme;
@@ -812,6 +847,8 @@ int main(int argc, char **argv) {
 
   view_ptr editor_views = std::make_shared<view_t>();
   editor_views->flex = 1;
+
+  bool show_tabs = false;
 
   // the editors
   editors_t editors;
@@ -889,20 +926,18 @@ int main(int argc, char **argv) {
 
   get_dimensions(&width, &height);
 
-  std::stringstream message;
   message << "Welcome to text-edit";
 
   int warm_start = 3;
   std::string last_key_sequence;
 
   editor_ptr prev;
-  bool running = true;
   while (running) {
     if (!editors.editors.size()) {
       break;
     }
 
-    tabs->show = editors.editors.size() > 1;
+    tabs->show = show_tabs && editors.editors.size() > 1;
 
     if (prev != editors.current_editor()) {
       editor = editors.current_editor();
@@ -923,6 +958,25 @@ int main(int argc, char **argv) {
       has_input = has_input | i->has_focus();
     }
     // status->show = !has_input;
+
+#ifdef VIM_MODE
+    // hijack goto line
+    bool show_cmd = (vimGetMode() == CMDLINE);
+    if (gotoline->show != show_cmd) {
+      gotoline->show = show_cmd;
+      gotoline->items["title"]->frame.w = 20;
+      gotoline->items["title"]->align = -1;
+      gotoline->items["title"]->color = pair_for_color(fn, false, false);
+      gotoline->input->show = false;
+      layout(root);
+    }
+    if (show_cmd) {
+      std::stringstream s;
+      s << (const char)vimCommandLineGetType();
+      s << (const char*)vimCommandLineGetText();
+      gotoline->items["title"]->text = s.str();
+    }
+#endif
 
     if (last_layout_hash != size) {
       std::stringstream s;
@@ -945,6 +999,7 @@ int main(int argc, char **argv) {
     _cur.start.row = cl-1;
     _cur.start.column = cc;
     _cur.end = _cur.start;
+    view_t::input_focus->update_scroll();
 #endif
 
     draw_tabs(tabs, editors);
@@ -1007,11 +1062,17 @@ int main(int argc, char **argv) {
     // status
     if (status->show) {
       std::stringstream ss;
+      #ifdef VIM_MODE
+      if (vimGetMode() == INSERT) {
+        ss << "INS   ";
+      }
+      #else
       if (doc->insert_mode) {
         ss << "INS   ";
       } else {
         ss << "OVR   ";
       }
+      #endif
       ss << doc->language->id;
       ss << "  ";
       // ss << " line ";
@@ -1187,50 +1248,48 @@ int main(int argc, char **argv) {
     }
 
 #ifdef VIM_MODE
-    size_t start_len = doc->size();
-    cl = vimCursorGetLine();
+    if (view_t::input_focus == editors.current_editor()) {
+      vimBufferSetCurrent((buf_T*)(doc->buf));
 
-    bool didVimInput = false;
+      size_t start_len = doc->size();
+      cl = vimCursorGetLine();
 
-    if (key_sequence == "" && ch != -1) {
-      char seq[] = { (char)ch, 0, 0, 0, 0 };
-      vimKey((unsigned char*)seq);
-      // log("%c %d\n", ch, ch);
-      didVimInput = true;
-    } else  {
-      std::string remapped = remapKey(key_sequence);
-      if (remapped != "") {
-        vimKey((unsigned char*)remapped.c_str());
+      bool didVimInput = false;
+      message.str("");
+
+      if (key_sequence == "" && ch != -1) {
+        char seq[] = { (char)ch, 0, 0, 0, 0 };
+        vimKey((unsigned char*)seq);
+        // log("%c %d\n", ch, ch);
         didVimInput = true;
-      }
-    }
-
-    if (didVimInput) {
-      size_t end_len = doc->size();
-      int ncl = vimCursorGetLine();
-      BlockPtr block = doc->block_at(ncl-1);
-      if (block) {
-        block->make_dirty();
+      } else  {
+        std::string remapped = remapKey(key_sequence);
+        if (remapped != "") {
+          vimKey((unsigned char*)remapped.c_str());
+          didVimInput = true;
+        }
       }
 
-      int diff = end_len - start_len;
-      // log("%d %d >>%d\n", cl, ncl, diff);
-      if (diff > 0) {
-        for(int i=0; i<diff; i++) {
-          doc->add_block_at(ncl);
+      if (didVimInput) {
+        size_t end_len = doc->size();
+        int ncl = vimCursorGetLine();
+        BlockPtr block = doc->block_at(ncl-1);
+        if (block) {
+          block->make_dirty();
         }
-      } else if (diff < 0) {
-        for(int i=0; i<-diff; i++) {
-          doc->erase_block_at(ncl);
+
+        int diff = end_len - start_len;
+        if (diff > 0) {
+          for(int i=0; i<diff; i++) {
+            doc->add_block_at(ncl);
+          }
+        } else if (diff < 0) {
+          for(int i=0; i<-diff; i++) {
+            doc->erase_block_at(ncl);
+          }
         }
-        // for(int i=0; i<-diff; i++) {
-        //   BlockPtr block = doc->block_at(ncl+i-1);
-        //   if (block) {
-        //     block->make_dirty();
-        //   }
-        // }
+        continue;
       }
-      continue;
     }
 #endif
 
@@ -1321,12 +1380,13 @@ int main(int argc, char **argv) {
       }
     }
     if (cmd.command == "toggle_tabs") {
-      if (!tabs->show) {
+      show_tabs = !show_tabs;
+      if (!tabs->show && show_tabs) {
         tabs->show = true;
         view_t::input_focus = tabs;
         relayout();
         continue;
-      } else if (tabs->show) {
+      } else if (tabs->show || !show_tabs) {
         tabs->show = false;
         view_t::input_focus = editor;
         relayout();

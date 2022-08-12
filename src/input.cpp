@@ -404,6 +404,18 @@ std::map<std::string, std::string> remap_table = {
   { "backspace", "<BACKSPACE>" },
   { "delete", "<DEL>" },
   { "escape", "<ESC>" },
+  { "tab", "<TAB>" },
+  { "insert", "<INS>" },
+  { "ctrl+v", "<C-V>" }, // visual mode - block (v, V, C-B)
+  { "ctrl+u", "<C-U>" }, // half page up << not working
+  { "ctrl+d", "<C-D>" }, // half page down << not working ; unindent
+  { "ctrl+t", "<C-T>" }, // indent
+  { "ctrl+b", "<C-B>" }, // page up << not working
+  { "ctrl+f", "<C-F>" }, // page down << not working
+  { "ctrl+[", "<C-[>" }, // exit insert mode
+  { "ctrl+r", "<C-R>" }, // redo
+  { "ctrl+w", "<C-?>" }, // discard
+  { "ctrl+q", "<C-?>" }, // discard
 };
 
 std::string remapKey(std::string &keySequence)

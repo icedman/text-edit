@@ -118,24 +118,28 @@ bool Document::load(std::string path) {
   file_path = path;
   name = base_name(path);
 
+  std::u16string str;
+
 #ifdef VIM_MODE
   buf = (void*)vimBufferOpen((unsigned char*)path.c_str(), 1, 0);
-#endif
+#else
 
   std::ifstream t(path);
   std::stringstream buffer;
   buffer << t.rdbuf();
 
-  std::u16string str;
-
   optional<EncodingConversion> enc = transcoding_from("UTF-8");
   (*enc).decode(str, buffer.str().c_str(), buffer.str().size());
+#endif
 
   initialize(str);
   return true;
 }
 
 bool Document::save(std::string path) {
+  #ifdef VIM_MODE
+    return true;
+  #endif
   std::string _sstring = u16string_to_string(buffer.text());
   std::ofstream t(path);
   t << _sstring;
