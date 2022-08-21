@@ -285,6 +285,9 @@ endif
 math_lib = cc.find_library('m', required : false, disabler: true)
 math_dep = declare_dependency(dependencies: math_lib)
 
+acl_lib = cc.find_library('acl', required : false, disabler: true)
+acl_dep = declare_dependency(dependencies: acl_lib)
+
 if get_option('build_curses')
 executable('text-edit',
     'src/main.cpp',
@@ -320,7 +323,7 @@ executable('text-edit',
         tree_sitter_includes,
         vim_includes
     ],
-    dependencies: [ curses_dep, math_dep ]
+    dependencies: [ curses_dep, math_dep, acl_dep ]
 )
 endif
 

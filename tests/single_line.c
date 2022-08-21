@@ -1,1 +1,6 @@
-int x = 0;
+#include <stdio.h>
+
+static int x;
+switch(a) {
+case X:
+default:
