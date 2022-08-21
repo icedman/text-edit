@@ -1,2 +1,3 @@
 build/*
 libs/tree-sitter-grammars/*
+libs/tm-parser/*
