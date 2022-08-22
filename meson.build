@@ -125,7 +125,6 @@ tm_parser_files = [
     'libs/tm-parser/textmate/scopes/scope.cpp',
     'libs/tm-parser/textmate/scopes/types.cpp',
     'libs/tm-parser/textmate/theme/theme.cpp',
-    'libs/tm-parser/textmate/theme/util.cpp',
     'libs/tm-parser/textmate/extensions/util.cpp',
     'libs/tm-parser/textmate/extensions/extension.cpp',
     'libs/tm-parser/textmate/resources/grammars.cpp',
