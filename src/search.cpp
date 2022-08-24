@@ -40,6 +40,11 @@ void *search_thread(void *arg) {
   std::u16string error;
   Regex regex(search->key.c_str(), &error, false, false);
 
+  Range r;
+  r.start = doc->cursor().start;
+  r.end = r.start;
+  r.end.row += 200;
+
   std::u16string k = search->key;
   search->matches = snapshot->find_all(regex, Range::all_inclusive());
 

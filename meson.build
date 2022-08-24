@@ -106,6 +106,14 @@ jsoncpp_includes = [
     'libs/jsoncpp/dist'
 ]
 
+cjson_files = [
+    'libs/cjson/cJSON.c'
+]
+
+cjson_includes = [
+    'libs/cjson'
+]
+
 tinyxml2_files = [
     'libs/tinyxml2/tinyxml2.cpp'
 ]
@@ -207,6 +215,7 @@ executable('text-edit',
     superstring_files,
     onigmo_files,
     jsoncpp_files,
+    cjson_files,
     tinyxml2_files,
     tm_parser_files,
     tree_sitter_files,
@@ -215,6 +224,7 @@ executable('text-edit',
         'src',
         tm_parser_includes,
         jsoncpp_includes,
+        cjson_includes,
         tinyxml2_includes,
         onigmo_includes,
         superstring_includes,
