@@ -6,6 +6,8 @@ project('text-edit', 'c', 'cpp',
 pwd = meson.current_source_dir()
 cc = meson.get_compiler('cpp')
 
+add_global_arguments('-DENABLE_LOG=1', language: 'cpp')
+
 #add_global_arguments('-DDISABLE_RESOURCE_CACHING=1', language: 'cpp')
 add_global_arguments('-D_XOPEN_SOURCE_EXTENDED=1', language: 'cpp')
 add_global_arguments('-Wno-sign-compare', language: 'cpp')
@@ -195,6 +197,9 @@ if not curses_dep.found()
   curses_dep = declare_dependency(include_directories: curses_root, dependencies: curses_lib)
 endif
 
+#add_global_arguments('-DPCRE2_CODE_UNIT_WIDTH=16', language: 'cpp')
+#pcre2_dep = dependency('libpcre2-16', required: false, disabler: true)
+
 if get_option('build_curses')
 executable('text-edit',
     'src/main.cpp',
@@ -244,7 +249,8 @@ executable('regex_test',
         'src',
         onigmo_includes,
         superstring_includes
-    ]
+    ],
+    dependencies: [ curses_dep ]
 )
 executable('keys_test',
     'tests/keys_test.cpp',

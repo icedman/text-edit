@@ -17,6 +17,52 @@
 int main(int argc, char **argv) {
 
   {
+    regex_t *reg = NULL;
+    OnigErrorInfo einfo;
+
+    // std::u16string spattern = u"a(.*)b|[e-f]+";
+    std::u16string spattern = u"[a-zA-Z_0-9]+";
+    std::string _spattern = u16string_to_string(spattern);
+    UChar *pattern = (UChar *)spattern.c_str();
+
+    int opts = ONIG_OPTION_DEFAULT;
+    opts = opts | ONIG_OPTION_IGNORECASE;
+
+    int r = onig_new(&reg, pattern, pattern + spattern.size() * 2, opts,
+                     ONIG_ENCODING_UTF16_LE, ONIG_SYNTAX_DEFAULT, &einfo);
+    if (r != ONIG_NORMAL) {
+      OnigUChar s[ONIG_MAX_ERROR_MESSAGE_LEN];
+      onig_error_code_to_str(s, r, &einfo);
+      // *error_message = u"error";
+      printf("ERROR: %s\n", s);
+      return -1;
+    }
+
+    OnigRegion *region = onig_region_new();
+    // int r;
+    unsigned char *start, *range, *end;
+
+    unsigned options = 0;
+    unsigned int onig_options = ONIG_OPTION_NONE;
+
+    std::u16string ss = u"the quick brown fox";
+    std::string _ss = u16string_to_string(ss);
+
+    UChar *str = (UChar *)ss.c_str();
+    end = str + ss.size() * 2;
+    start = str;
+    range = end;
+    r = onig_search(reg, str, end, start, range, region, onig_options);
+    // printf(">%d\n", r);
+
+    for (int i = 0; i < region->num_regs; i++) {
+      printf("%d: (%ld-%ld)\n", i, region->beg[i] / 2, region->end[i] / 2);
+      // break;
+    }
+    return 0;
+  }
+
+  {
     std::u16string pattern = u"a(.*)b|[e-f]+";
     std::u16string str = u"azzzzbffffffffb";
 

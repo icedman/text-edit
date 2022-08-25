@@ -68,7 +68,8 @@ void delay(int ms) {
 }
 
 void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
-                      const char *text, std::vector<textstyle_t> &styles, int height) {
+                      const char *text, std::vector<textstyle_t> &styles,
+                      int height) {
   screen_row += view->computed.y;
   int screen_col = view->computed.x;
   int l = strlen(text);
@@ -82,13 +83,14 @@ void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
   std::vector<Cursor> &cursors = doc->cursors;
 
   bool is_cursor_row = row == doc->cursor().start.row;
-  
-  for(int i=0; i<height; i++) {
+
+  for (int i = 0; i < height; i++) {
     if (screen_row + i > view->computed.h) {
       break;
     }
 
-    int pair = pair_for_color(is_cursor_row && i == 0 ? fg : cmt, is_cursor_row && i == 0, false);
+    int pair = pair_for_color(is_cursor_row && i == 0 ? fg : cmt,
+                              is_cursor_row && i == 0, false);
     _attron(_COLOR_PAIR(pair));
     _move(screen_row + i, screen_col);
     draw_clear(view->computed.w);
@@ -156,12 +158,13 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
   }
 }
 
-std::vector<textstyle_t> build_style_from_cache(BlockPtr block, const char *text) {
+std::vector<textstyle_t> build_style_from_cache(BlockPtr block,
+                                                const char *text) {
   std::vector<textstyle_t> res;
 
   std::string t = text;
   int lastIdx = 0;
-  for(auto m : block->style_cache) {
+  for (auto m : block->style_cache) {
     std::string key = m.first;
     std::string::size_type idx = t.find(key, 0);
     if (idx != std::string::npos) {
@@ -181,7 +184,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height = 0) {
   std::vector<textstyle_t> &styles = block->styles;
 
-  for(auto style : styles) {
+  for (auto style : styles) {
     std::string str(text + style.start, style.length);
     block->style_cache[str] = style;
   }
@@ -448,15 +451,16 @@ void draw_text_buffer(editor_ptr editor) {
     if (line >= view_start && line < view_end) {
       if (block->dirty) {
         if (doc->language && !doc->language->definition.isNull()) {
-          
+
           // if (block->styles.size() == 0) {
-            block->styles = Textmate::run_highlighter(
-                (char *)s.str().c_str(), doc->language, Textmate::theme(),
-                block.get(), doc->previous_block(block).get(),
-                doc->next_block(block).get(), NULL);
+          block->styles = Textmate::run_highlighter(
+              (char *)s.str().c_str(), doc->language, Textmate::theme(),
+              block.get(), doc->previous_block(block).get(),
+              doc->next_block(block).get(), NULL);
           //   block->style_cache.clear();
           // } else if (block->style_cache.size() > 2) {
-          //   block->styles = build_style_from_cache(block, (char *)s.str().c_str());
+          //   block->styles = build_style_from_cache(block, (char
+          //   *)s.str().c_str());
           // }
 
           //&block->span_infos);
@@ -611,7 +615,8 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
 }
 
 void draw_tabs(menu_ptr view, editors_t &editors) {
-  if (!view->show) return;
+  if (!view->show)
+    return;
   _move(view->computed.y, view->computed.x); // not accurate
   _clrtoeol();
 
@@ -854,7 +859,7 @@ int main(int argc, char **argv) {
     return true;
   };
 
-  explorer->show = false; // files->root->name.size() > 0; 
+  explorer->show = false; // files->root->name.size() > 0;
 
   init_renderer();
 

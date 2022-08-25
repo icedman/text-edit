@@ -1,5 +1,6 @@
 #include "search.h"
 #include "document.h"
+#include "util.h"
 
 #include <core/text-buffer.h>
 #include <pthread.h>
@@ -33,17 +34,13 @@ bool Search::is_disposable() {
 }
 
 void *search_thread(void *arg) {
+  log("begin search thread");
   Search *search = (Search *)arg;
   Document *doc = search->document;
   TextBuffer::Snapshot *snapshot = search->snapshot;
 
   std::u16string error;
   Regex regex(search->key.c_str(), &error, false, false);
-
-  Range r;
-  r.start = doc->cursor().start;
-  r.end = r.start;
-  r.end.row += 200;
 
   std::u16string k = search->key;
   search->matches = snapshot->find_all(regex, Range::all_inclusive());

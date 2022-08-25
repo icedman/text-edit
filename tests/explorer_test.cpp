@@ -22,8 +22,8 @@ int main(int argc, char **argv) {
 
   FileList tree;
   files->build_files(tree, files->root);
-  for(auto f : tree) {
-    for(int i=0; i<f->depth; i++) {
+  for (auto f : tree) {
+    for (int i = 0; i < f->depth; i++) {
       printf("  ");
     }
     printf("%s\n", f->full_path.c_str());

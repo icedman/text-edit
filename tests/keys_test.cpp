@@ -13,7 +13,7 @@
 
 int main(int argc, char **argv) {
   bool running = true;
-  
+
   initscr();
   raw();
   // cbreak();
@@ -22,18 +22,16 @@ int main(int argc, char **argv) {
   nodelay(stdscr, true);
 
   // std::string keySequence;
-  //  
+  //
   // int idx = 0;
   // char tmp[32];
   // while(running) {
   //   int c = getch();
   //   if (c != -1) {
   //     clrtoeol();
-  //     sprintf(tmp, "%c %x %d %c %s\n", c, c, (c & 0x1f) == c, (c & 0x1f), keyname(c));
-  //     addstr(tmp);
-  //     move(idx++,0);
-  //     if (idx > 10) idx = 0;
-  //     if (c == 'q') running = false;
+  //     sprintf(tmp, "%c %x %d %c %s\n", c, c, (c & 0x1f) == c, (c & 0x1f),
+  //     keyname(c)); addstr(tmp); move(idx++,0); if (idx > 10) idx = 0; if (c
+  //     == 'q') running = false;
   //   }
   // }
 
@@ -51,7 +49,7 @@ int main(int argc, char **argv) {
   //   addstr(tmp);
   //   refresh();
   // }
-  
+
   while (running) {
     if (kbhit(500) != 0) {
       char seq[4] = {0, 0, 0, 0};
@@ -67,7 +65,7 @@ int main(int argc, char **argv) {
         move(i, 0);
         clrtoeol();
         addstr(tmp);
-        move(i+1,0);
+        move(i + 1, 0);
         clrtoeol();
         refresh();
       }

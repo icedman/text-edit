@@ -27,8 +27,7 @@ int fn = 0;
 int kw = 0;
 int var = 0;
 
-void init_renderer()
-{
+void init_renderer() {
   setlocale(LC_ALL, "");
 
   initscr();
@@ -43,10 +42,7 @@ void init_renderer()
   start_color();
 }
 
-void shutdown_renderer()
-{
-  endwin();
-}
+void shutdown_renderer() { endwin(); }
 
 int color_index(int r, int g, int b) {
   return color_info_t::nearest_color_index(r, g, b);
@@ -338,63 +334,29 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
   }
 }
 
-void _move(int x, int y)
-{
-  move(x, y);
-}
+void _move(int x, int y) { move(x, y); }
 
-void _attron(int attr)
-{
-  attron(attr);
-}
+void _attron(int attr) { attron(attr); }
 
-void _attroff(int attr)
-{
-  attroff(attr);
-}
+void _attroff(int attr) { attroff(attr); }
 
-void _clear()
-{
-  clear();
-}
+void _clear() { clear(); }
 
-void _refresh()
-{
-  refresh();
-}
+void _refresh() { refresh(); }
 
-void _addstr(const char *text)
-{
-  addstr(text);
-}
+void _addstr(const char *text) { addstr(text); }
 
-void _addwstr(const wchar_t *text)
-{
-  addwstr(text);
-}
+void _addwstr(const wchar_t *text) { addwstr(text); }
 
-void _addch(char ch)
-{
-  addch(ch);
-}
+void _addch(char ch) { addch(ch); }
 
-void _clrtoeol()
-{
-  clrtoeol();
-}
+void _clrtoeol() { clrtoeol(); }
 
-void _curs_set(int i)
-{
-  curs_set(i);
-}
+void _curs_set(int i) { curs_set(i); }
 
-int _COLOR_PAIR(int i)
-{
-  return COLOR_PAIR(i);
-}
+int _COLOR_PAIR(int i) { return COLOR_PAIR(i); }
 
-void _underline(bool on)
-{
+void _underline(bool on) {
   if (on) {
     attron(A_UNDERLINE);
   } else {
@@ -402,8 +364,7 @@ void _underline(bool on)
   }
 }
 
-void _reverse(bool on)
-{
+void _reverse(bool on) {
   if (on) {
     attron(A_REVERSE);
   } else {
@@ -411,8 +372,7 @@ void _reverse(bool on)
   }
 }
 
-void _bold(bool on)
-{
+void _bold(bool on) {
   if (on) {
     attron(A_BOLD);
   } else {

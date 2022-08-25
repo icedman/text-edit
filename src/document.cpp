@@ -1,6 +1,7 @@
 #include "document.h"
 #include "files.h"
 #include "utf8.h"
+#include "util.h"
 
 #include <algorithm>
 #include <core/encoding-conversion.h>
@@ -191,7 +192,7 @@ void Document::go_to_line(int line) {
 
 void Document::insert_text(std::u16string text) {
   prepare_undo();
-      
+
   std::sort(cursors.begin(), cursors.end(), compare_range_reverse);
   for (auto &c : cursors) {
     begin_cursor_markers(c);
@@ -621,7 +622,7 @@ optional<Range> Document::find_from_cursor(std::u16string text, Cursor cursor) {
       _row = _row.substr(offset);
     }
     char16_t *_str = (char16_t *)(_row).c_str();
-    res = regex.match(_str, strlen((char *)_str), data);
+    res = regex.match(_str, _row.size(), data);
     if (res.type == Regex::MatchResult::Full) {
       range = Range({line, res.start_offset + offset},
                     {line, res.end_offset + offset});
@@ -653,30 +654,28 @@ std::vector<Range> Document::words_in_line(int line) {
   std::u16string str = *row;
 
   static std::u16string pattern = u"[a-zA-Z_0-9]+";
-
   std::u16string error;
   Regex regex(pattern.c_str(), &error, false, false);
   Regex::MatchData data(regex);
   Regex::MatchResult res = {Regex::MatchResult::None, 0, 0};
 
+  int idx = 0;
   int offset = 0;
   do {
     offset += res.end_offset;
-    char16_t *_str = (char16_t *)str.c_str();
-    _str += offset;
-    res = regex.match(_str, strlen((char *)_str), data);
-    // printf(">%d %ld %ld\n", res.type, offset + res.start_offset,
-    //        offset + res.end_offset);
-    // std::u16string _w = str.substr(offset + res.start_offset,
-    //                                (res.end_offset - res.start_offset));
-    // std::string _w8 = u16string_to_string(_w);
-    // printf(">>%s\n", _w8.c_str());
+    std::u16string sstr = str.substr(offset);
+    char16_t *_str = (char16_t *)sstr.c_str();
+    res = regex.match(_str, sstr.size() * 2, data);
     if (res.type == Regex::MatchResult::Full) {
       words.push_back(Range{Point{line, offset + res.start_offset},
                             Point{line, offset + res.end_offset}});
+      // log("%d. %d %d %s", idx++, res.start_offset + offset, offset +
+      // res.end_offset,
+      //     u16string_to_string(str).substr(
+      //       res.start_offset + offset, res.end_offset - res.start_offset
+      //       ).c_str());
     }
   } while (res.type == Regex::MatchResult::Full);
-
   return words;
 }
 
@@ -1135,16 +1134,14 @@ void Document::auto_close(int idx) {
   cursors = curs_backup;
 }
 
-void Document::prepare_undo()
-{
+void Document::prepare_undo() {
   if (!undo_snapshot) {
     buffer.flush_changes();
     undo_snapshot = buffer.create_snapshot();
   }
 }
 
-void Document::commit_undo()
-{
+void Document::commit_undo() {
   if (undo_snapshot) {
 
     auto patch = buffer.get_inverted_changes(undo_snapshot);
@@ -1157,11 +1154,12 @@ void Document::commit_undo()
         entry = std::make_shared<HistoryEntry>();
         entries.push_back(entry);
       }
-      entry->patches.push_back(TextPatch{c.old_text->content.data(),
-                                        c.new_text->content.data(),
-                                        Range{c.old_start, c.old_end},
-                                        Range{c.new_start, c.new_end},
-                                      });
+      entry->patches.push_back(TextPatch{
+          c.old_text->content.data(),
+          c.new_text->content.data(),
+          Range{c.old_start, c.old_end},
+          Range{c.new_start, c.new_end},
+      });
     }
 
     if (has_changes) {
@@ -1186,7 +1184,7 @@ void Document::undo() {
   Cursor cur = cursor();
 
   auto it = last->patches.rbegin();
-  while(it != last->patches.rend()) {
+  while (it != last->patches.rend()) {
     auto c = *it++;
     buffer.set_text_in_range(c.range, c.new_text.data());
     cur.start = c.range.start;
@@ -1204,8 +1202,9 @@ void Document::redo() {
     folds.clear();
     return;
   }
-  
-  if (redo_patches.size() == 0) return;
+
+  if (redo_patches.size() == 0)
+    return;
 
   prepare_undo();
 
@@ -1225,5 +1224,5 @@ void Document::redo() {
   redo_patches.clear();
 
   commit_undo();
-  make_dirty();  
+  make_dirty();
 }

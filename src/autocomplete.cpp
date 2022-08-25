@@ -29,12 +29,18 @@ bool AutoComplete::is_disposable() {
   return --ttl <= 0;
 }
 
+#include "utf8.h"
+#include "util.h"
+
 void *autocomplete_thread(void *arg) {
   AutoComplete *autocomplete = (AutoComplete *)arg;
   Document *doc = autocomplete->document;
   TextBuffer::Snapshot *snapshot = autocomplete->snapshot;
 
   std::u16string k = autocomplete->prefix;
+
+  // log("%s", u16string_to_string(k).c_str());
+
   std::vector<TextBuffer::SubsequenceMatch> res =
       snapshot->find_words_with_subsequence_in_range(k, k,
                                                      Range::all_inclusive());
