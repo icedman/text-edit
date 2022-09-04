@@ -386,7 +386,9 @@ editor_ptr editors_t::add_editor(std::string path) {
   DocumentPtr doc = e->doc;
   doc->load(path);
   int lang_id = Textmate::load_language(path);
-  doc->set_language(Textmate::language_info(lang_id));
+  if (lang_id != -1) {
+    doc->set_language(Textmate::language_info(lang_id));
+  }
   return e;
 }
 

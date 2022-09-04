@@ -985,8 +985,10 @@ int main(int argc, char **argv) {
       } else {
         ss << "OVR   ";
       }
-      ss << doc->language->id;
-      ss << "  ";
+      if (doc->language) {
+        ss << doc->language->id;
+        ss << "  ";
+      }
       // ss << " line ";
       ss << (cursor.start.row + 1);
       // ss << " col ";
