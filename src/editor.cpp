@@ -64,6 +64,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   }
   if (cmd.command == "paste") {
     doc->paste();
+    request_treesitter = true;
   }
   if (cmd.command == "select_word") {
     doc->add_cursor_from_selected_word();
@@ -208,14 +209,19 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
   return false;
 }
 
+#include "util.h"
+
 bool editor_t::on_idle(int frame) {
   if (frame == 500 && request_treesitter) {
-    doc->run_treesitter();
-    request_treesitter = false;
-
-    // save undo
-    // doc->snapshots.push_back(doc->buffer.create_snapshot());
-    return true;
+    // log("idle");
+    if (!doc->has_pending_treesitters()) {
+      doc->run_treesitter();
+      request_treesitter = false;
+      return true;
+    } else {
+      // this would almost be impossible to happen
+      // log("treesitter .. defer");
+    }
   }
   if (frame == 750 && request_autocomplete) {
     doc->clear_autocomplete(true);

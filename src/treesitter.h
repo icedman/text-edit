@@ -19,6 +19,7 @@ public:
 
   State state;
   TextBuffer::Snapshot *snapshot;
+  Patch patch;
   Document *document;
   TSTree *tree;
 
@@ -40,6 +41,8 @@ public:
   TSNode node_at(int row, int column);
 
   static bool is_available(std::string lang_id);
+
+  std::shared_ptr<TreeSitter> reference;
 };
 
 typedef std::shared_ptr<TreeSitter> TreeSitterPtr;

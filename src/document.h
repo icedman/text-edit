@@ -91,6 +91,7 @@ public:
   std::u16string search_key;
   std::map<std::u16string, SearchPtr> searches;
   std::vector<TreeSitterPtr> treesitters;
+  bool has_pending_treesitters();
 
   // history
   std::vector<HistoryEntryPtr> entries;

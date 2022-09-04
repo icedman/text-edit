@@ -954,6 +954,15 @@ void Document::clear_search(bool force) {
   }
 }
 
+bool Document::has_pending_treesitters() {
+  for (auto t : treesitters) {
+    if (t->state < TreeSitter::Ready) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void Document::run_treesitter() {
   if (!language)
     return;
@@ -964,7 +973,16 @@ void Document::run_treesitter() {
 
   TreeSitterPtr treesitter = std::make_shared<TreeSitter>();
   treesitter->document = this;
+
+  buffer.flush_changes();
   treesitter->snapshot = buffer.create_snapshot();
+  treesitter->snapshot->flush_preceding_changes();
+
+  if (treesitters.size() > 0) {
+    treesitter->reference = treesitters.back();
+    treesitter->patch =
+        buffer.get_inverted_changes(treesitter->reference->snapshot);
+  }
   treesitters.push_back(treesitter);
   TreeSitter::run(treesitter.get());
 }

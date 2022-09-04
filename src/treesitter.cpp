@@ -20,18 +20,15 @@ const TSLanguage *tree_sitter_python(void);
 }
 
 #include "document.h"
+#include "util.h"
 
 std::map<std::string, std::function<const TSLanguage *()>> ts_languages = {
-    {"c", tree_sitter_c},
-    {"cpp", tree_sitter_cpp},
-    {"csharp", tree_sitter_c_sharp},
-    {"css", tree_sitter_css},
-    {"html", tree_sitter_html},
-    {"xml", tree_sitter_html},
-    {"java", tree_sitter_java},
-    {"javascript", tree_sitter_javascript},
-    {"js", tree_sitter_javascript},
-    {"json", tree_sitter_json},
+    {"c", tree_sitter_c},           {"cpp", tree_sitter_cpp},
+    {"h", tree_sitter_cpp},         {"hpp", tree_sitter_cpp},
+    {"cs", tree_sitter_c_sharp},    {"css", tree_sitter_css},
+    {"html", tree_sitter_html},     {"xml", tree_sitter_html},
+    {"java", tree_sitter_java},     {"jsx", tree_sitter_javascript},
+    {"js", tree_sitter_javascript}, {"json", tree_sitter_json},
     {"python", tree_sitter_python},
 };
 
@@ -49,6 +46,9 @@ void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
     nodes->clear();
     return;
   }
+
+  // log("(%d %d)-(%d %d) %s", startPoint.row, startPoint.column, endPoint.row,
+  // endPoint.column, type);
 
   // if (strlen(type) == 0 || type[0] == '\n') return;
 
@@ -105,9 +105,105 @@ void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
 // input.encoding = TSInputEncodingUTF16;
 // input.read = _tinput_read;
 
+const char *_read(void *payload, uint32_t byte_index, TSPoint position,
+                  uint32_t *bytes_read) {
+  TextBuffer::Snapshot *snapshot = (TextBuffer::Snapshot *)payload;
+  int extent = snapshot->extent().row + 1;
+
+  *bytes_read = 0;
+
+  if (position.row < extent) {
+    optional<uint32_t> length = snapshot->line_length_for_row(position.row);
+    // optional<std::u16string> row =
+    // snapshot->line_length_for_row(position.row);
+
+    log("reading: (%d %d)", position.row, position.column);
+    if (length) {
+      uint32_t l = *length;
+      int ll = l - position.column;
+      if (position.column < l) {
+        std::u16string str =
+            snapshot->text_in_range({{position.row, position.column},
+                                     {position.row, position.column + ll}});
+        *bytes_read = str.size();
+        log(">>(%d %d) %s %d", position.row, position.column,
+            u16string_to_string(str).c_str(), ll);
+        // return (char*)str.c_str();//u16string_to_string(str).c_str();
+        return (char *)u16string_to_string(str).c_str();
+      }
+    }
+
+    if (*bytes_read == 0) {
+      *bytes_read = 1;
+      return "\n";
+    }
+  }
+
+  return "";
+}
+
+// #include "text-diff.h"
+
 void build_tree(TreeSitter *treesitter) {
   Document *doc = treesitter->document;
   TextBuffer::Snapshot *snapshot = treesitter->snapshot;
+
+  // log("%x", treesitter->thread_id);
+
+  TSTree *old_tree = NULL;
+  TSInputEdit edit;
+
+#if 1
+  // get changes from last treesitter run
+  if (treesitter->reference) {
+    old_tree = treesitter->reference->tree;
+
+    std::vector<TSInputEdit> edits;
+
+    int base_row = -1;
+    for (auto c : treesitter->patch.get_changes()) {
+      // TODO
+      // This considers only if insert is on a single line
+      // This is dropped if it is a multiline edit
+      if (c.old_start.row != c.new_start.row ||
+          c.old_end.column < c.new_end.column) {
+        old_tree = NULL;
+        break;
+      }
+      std::u16string s = snapshot->text_in_range(
+          {{0, 0}, {c.old_start.row, c.old_start.column}});
+
+      if (base_row == -1) {
+        base_row = c.old_start.row;
+      } else if (base_row != c.old_start.row) {
+        old_tree = NULL;
+        break;
+      }
+      int len = c.old_end.column - c.new_end.column;
+
+      edit.start_byte = s.size();
+      edit.old_end_byte = edit.start_byte;
+      edit.new_end_byte = edit.start_byte + len;
+
+      edit.start_point.row = c.old_start.row;
+      edit.start_point.column = c.old_start.column;
+      edit.old_end_point = edit.start_point;
+      edit.new_end_point = edit.start_point;
+      edit.new_end_point.column += len;
+      edits.push_back(edit);
+
+      // log(" %d %d %d %d %s %d", c.old_start.row, c.old_start.column,
+      // edit.start_byte, edit.old_end_byte, c.old_text->content.data(), len);
+    }
+
+    if (old_tree) {
+      log("...update tree");
+      for (auto e : edits) {
+        ts_tree_edit(old_tree, &e);
+      }
+    }
+  }
+#endif
 
   treesitter->tree = NULL;
 
@@ -119,17 +215,34 @@ void build_tree(TreeSitter *treesitter) {
   std::function<const TSLanguage *()> lang = ts_languages[langId];
 
   TSParser *parser = ts_parser_new();
+  ts_parser_set_timeout_micros(parser, 1000 * 1000 * 5); // 5 seconds?
   if (!ts_parser_set_language(parser, lang())) {
     printf("Invalid language\n");
     return;
   }
 
-  TSTree *tree = ts_parser_parse_string(parser, NULL /* TODO: old_tree */,
+#if 0
+  TSInput tsinput;
+  tsinput.payload = (void*)snapshot;
+  tsinput.read = _read;
+  tsinput.encoding = TSInputEncodingUTF8;
+  TSTree *tree = ts_parser_parse(parser, old_tree, tsinput);
+#else
+  TSTree *tree = ts_parser_parse_string(parser, old_tree /* TODO: old_tree */,
                                         (char *)(treesitter->content.c_str()),
                                         treesitter->content.size());
+#endif
 
   if (tree) {
     treesitter->tree = tree;
+
+    // log("dump----------");
+    // TSNode root_node = ts_tree_root_node(tree);
+    // TSTreeCursor cursor = ts_tree_cursor_new(root_node);
+    // std::vector<TSNode> nodes;
+    // walk_tree(&cursor, 0, -1, -1, &nodes);
+    // ts_tree_cursor_delete(&cursor);
+
   } else {
     // printf(">>Error parsing\n");
   }
@@ -254,8 +367,8 @@ void *treeSitter_thread(void *arg) {
   // build_reference(treesitter);
   // treesitter->reference_ready = true;
 
-  delete treesitter->snapshot;
-  treesitter->snapshot = NULL;
+  // delete treesitter->snapshot;
+  // treesitter->snapshot = NULL;
 
   treesitter->content.clear();
   return NULL;
