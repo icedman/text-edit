@@ -22,15 +22,25 @@ const TSLanguage *tree_sitter_python(void);
 #include "document.h"
 #include "util.h"
 
+#define ENABLE_INCREMENTAL_UPDATE
+#define PARSER_TIMEOUT 1000 * 1000 * 5
+
 std::map<std::string, std::function<const TSLanguage *()>> ts_languages = {
-    {"c", tree_sitter_c},           {"cpp", tree_sitter_cpp},
-    {"h", tree_sitter_cpp},         {"hpp", tree_sitter_cpp},
-    {"cs", tree_sitter_c_sharp},    {"css", tree_sitter_css},
-    {"html", tree_sitter_html},     {"xml", tree_sitter_html},
-    {"java", tree_sitter_java},     {"jsx", tree_sitter_javascript},
+    {"c", tree_sitter_c},
+    {"cpp", tree_sitter_cpp},
+    {"h", tree_sitter_cpp},
+    {"hpp", tree_sitter_cpp},
+    {"cs", tree_sitter_c_sharp},
+    {"css", tree_sitter_css},
+    {"html", tree_sitter_html},
+    {"xml", tree_sitter_html},
+    {"java", tree_sitter_java},
+    {"jsx", tree_sitter_javascript},
     {"js", tree_sitter_javascript},
     {"javascript", tree_sitter_javascript},
-    {"json", tree_sitter_json}, {"python", tree_sitter_python},
+    {"vue", tree_sitter_javascript},
+    {"json", tree_sitter_json},
+    {"python", tree_sitter_python},
 };
 
 void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
@@ -43,15 +53,13 @@ void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
   TSPoint startPoint = ts_node_start_point(node);
   TSPoint endPoint = ts_node_end_point(node);
 
-  if (strcmp(type, "ERROR") == 0) {
-    nodes->clear();
-    return;
-  }
+  // if (strcmp(type, "ERROR") == 0) {
+  //   nodes->clear();
+  //   return;
+  // }
 
   // log("(%d %d)-(%d %d) %s", startPoint.row, startPoint.column, endPoint.row,
   // endPoint.column, type);
-
-  // if (strlen(type) == 0 || type[0] == '\n') return;
 
   if (row != -1 && column != -1) {
     if (row < startPoint.row ||
@@ -119,12 +127,12 @@ void build_tree(TreeSitter *treesitter) {
   Document *doc = treesitter->document;
   TextBuffer::Snapshot *snapshot = treesitter->snapshot;
 
-  log("%x", treesitter->thread_id);
+  // log("%x", treesitter->thread_id);
 
   TSTree *old_tree = NULL;
   TSInputEdit edit;
 
-#if 1
+#ifdef ENABLE_INCREMENTAL_UPDATE
   // get changes from last treesitter run
   if (treesitter->reference) {
     old_tree = treesitter->reference->tree;
@@ -168,7 +176,7 @@ void build_tree(TreeSitter *treesitter) {
     }
 
     if (old_tree) {
-      log("...update tree");
+      // log("...update tree");
       for (auto e : edits) {
         ts_tree_edit(old_tree, &e);
       }
@@ -187,7 +195,9 @@ void build_tree(TreeSitter *treesitter) {
   std::function<const TSLanguage *()> lang = ts_languages[langId];
 
   TSParser *parser = ts_parser_new();
-  ts_parser_set_timeout_micros(parser, 1000 * 1000 * 10); // 5 seconds?
+#ifdef PARSER_TIMEOUT
+  ts_parser_set_timeout_micros(parser, PARSER_TIMEOUT);
+#endif
   if (!ts_parser_set_language(parser, lang())) {
     log("invalid language\n");
     return;
@@ -208,7 +218,6 @@ void build_tree(TreeSitter *treesitter) {
 
   if (tree) {
     treesitter->tree = tree;
-    log("tree parsed");
     // log("dump----------");
     // TSNode root_node = ts_tree_root_node(tree);
     // TSTreeCursor cursor = ts_tree_cursor_new(root_node);
@@ -292,7 +301,7 @@ TreeSitter::~TreeSitter() {
   if (tree) {
     ts_tree_delete(tree);
   }
-  log("~treesitter");
+  // log("~treesitter");
 }
 
 void TreeSitter::set_ready() { state = TreeSitter::State::Ready; }
@@ -328,7 +337,12 @@ TSNode TreeSitter::node_at(int row, int column) {
   return res;
 }
 
+void perf_begin_timer(std::string);
+void perf_end_timer(std::string);
+
 void *treeSitter_thread(void *arg) {
+  perf_begin_timer("treesitter");
+
   TreeSitter *treesitter = (TreeSitter *)arg;
 
   treesitter->content = u16string_to_string(treesitter->snapshot->text());
@@ -345,6 +359,8 @@ void *treeSitter_thread(void *arg) {
   // treesitter->snapshot = NULL;
 
   treesitter->content.clear();
+
+  perf_end_timer("treesitter");
   return NULL;
 }
 

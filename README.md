@@ -16,5 +16,8 @@
 * block collapse/folding
 
 ## todo
-* Improve rendering
+* improve rendering
 * https://open-vsx.org/
+
+## issues
+* \t rendering

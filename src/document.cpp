@@ -967,9 +967,11 @@ void Document::run_treesitter() {
   if (!language)
     return;
 
-  // disable
+// disable
+#ifdef TS_DOC_SIZE_LIMIT
   if (size() > TS_DOC_SIZE_LIMIT)
     return;
+#endif
 
   TreeSitterPtr treesitter = std::make_shared<TreeSitter>();
   treesitter->document = this;
@@ -1013,10 +1015,13 @@ TreeSitterPtr Document::treesitter() {
     treesitters.erase(treesitters.begin());
   }
 
+#ifdef TS_DOC_SIZE_LIMIT
   if (size() > TS_DOC_SIZE_LIMIT && treesitters.size()) {
     back = nullptr;
     treesitters.erase(treesitters.begin());
   }
+#endif
+
   return back;
 }
 

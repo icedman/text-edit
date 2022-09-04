@@ -27,6 +27,17 @@ void draw_styled_text(view_ptr view, const char *text, int row, int col,
                       std::vector<textstyle_t> *extra_styles = 0,
                       bool wrap = false, int *height = 0);
 
+void draw_gutter_line(editor_ptr editor, view_ptr view, int screen_row, int row,
+                      const char *text, std::vector<textstyle_t> &styles,
+                      int height);
+void draw_gutter(editor_ptr editor, view_ptr view);
+void draw_tree_sitter(editor_ptr editor, view_ptr view,
+                      TreeSitterPtr treesitter, Cursor cursor);
+void draw_tabs(menu_ptr view, editors_t &editors);
+void draw_text_line(editor_ptr editor, int screen_row, int row,
+                    const char *text, BlockPtr block, int *height = 0);
+void draw_text_buffer(editor_ptr editor);
+
 void _move(int x, int y);
 void _attron(int attr);
 void _attroff(int attr);
