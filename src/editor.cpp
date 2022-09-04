@@ -213,8 +213,8 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
 
 bool editor_t::on_idle(int frame) {
   if (frame == 500 && request_treesitter) {
-    // log("idle");
     if (!doc->has_pending_treesitters()) {
+      // log("request_treesitter");
       doc->run_treesitter();
       request_treesitter = false;
       return true;

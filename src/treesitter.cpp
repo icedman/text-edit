@@ -28,8 +28,9 @@ std::map<std::string, std::function<const TSLanguage *()>> ts_languages = {
     {"cs", tree_sitter_c_sharp},    {"css", tree_sitter_css},
     {"html", tree_sitter_html},     {"xml", tree_sitter_html},
     {"java", tree_sitter_java},     {"jsx", tree_sitter_javascript},
-    {"js", tree_sitter_javascript}, {"json", tree_sitter_json},
-    {"python", tree_sitter_python},
+    {"js", tree_sitter_javascript},
+    {"javascript", tree_sitter_javascript},
+    {"json", tree_sitter_json}, {"python", tree_sitter_python},
 };
 
 void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
@@ -78,33 +79,7 @@ void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
   } while (ts_tree_cursor_goto_next_sibling(cursor));
 }
 
-// TODO
-// const char* _tinput_read(
-//   void *payload,
-//   uint32_t byte_offset,
-//   TSPoint position,
-//   uint32_t *bytes_read
-// ) {
-//   TextBuffer::Snapshot *snapshot = (TextBuffer::Snapshot*)payload;
-//   Point point = snapshot->position_for_offset(byte_offset);
-//   std::u16string str =
-//   return str.substr(byte_offset, );
-// }
-// typedef struct {
-//   void *payload;
-//   const char *(*read)(
-//     void *payload,
-//     uint32_t byte_offset,
-//     TSPoint position,
-//     uint32_t *bytes_read
-//   );
-//   TSInputEncoding encoding;
-// } TSInput;
-// TSInput input;
-// input.payload = (void*)snapshot;
-// input.encoding = TSInputEncodingUTF16;
-// input.read = _tinput_read;
-
+// doesn't work correctly
 const char *_read(void *payload, uint32_t byte_index, TSPoint position,
                   uint32_t *bytes_read) {
   TextBuffer::Snapshot *snapshot = (TextBuffer::Snapshot *)payload;
@@ -114,8 +89,6 @@ const char *_read(void *payload, uint32_t byte_index, TSPoint position,
 
   if (position.row < extent) {
     optional<uint32_t> length = snapshot->line_length_for_row(position.row);
-    // optional<std::u16string> row =
-    // snapshot->line_length_for_row(position.row);
 
     log("reading: (%d %d)", position.row, position.column);
     if (length) {
@@ -142,13 +115,11 @@ const char *_read(void *payload, uint32_t byte_index, TSPoint position,
   return "";
 }
 
-// #include "text-diff.h"
-
 void build_tree(TreeSitter *treesitter) {
   Document *doc = treesitter->document;
   TextBuffer::Snapshot *snapshot = treesitter->snapshot;
 
-  // log("%x", treesitter->thread_id);
+  log("%x", treesitter->thread_id);
 
   TSTree *old_tree = NULL;
   TSInputEdit edit;
@@ -208,34 +179,36 @@ void build_tree(TreeSitter *treesitter) {
   treesitter->tree = NULL;
 
   std::string langId = doc->language ? doc->language->id : "--unknown--";
+
   if (ts_languages.find(langId) == ts_languages.end()) {
-    // printf("language not available\n");
+    log("language not available %s\n", langId.c_str());
     return;
   }
   std::function<const TSLanguage *()> lang = ts_languages[langId];
 
   TSParser *parser = ts_parser_new();
-  ts_parser_set_timeout_micros(parser, 1000 * 1000 * 5); // 5 seconds?
+  ts_parser_set_timeout_micros(parser, 1000 * 1000 * 10); // 5 seconds?
   if (!ts_parser_set_language(parser, lang())) {
-    printf("Invalid language\n");
+    log("invalid language\n");
     return;
   }
 
 #if 0
+  // doesn't work correctly
   TSInput tsinput;
   tsinput.payload = (void*)snapshot;
   tsinput.read = _read;
   tsinput.encoding = TSInputEncodingUTF8;
   TSTree *tree = ts_parser_parse(parser, old_tree, tsinput);
 #else
-  TSTree *tree = ts_parser_parse_string(parser, old_tree /* TODO: old_tree */,
+  TSTree *tree = ts_parser_parse_string(parser, old_tree,
                                         (char *)(treesitter->content.c_str()),
                                         treesitter->content.size());
 #endif
 
   if (tree) {
     treesitter->tree = tree;
-
+    log("tree parsed");
     // log("dump----------");
     // TSNode root_node = ts_tree_root_node(tree);
     // TSTreeCursor cursor = ts_tree_cursor_new(root_node);
@@ -244,7 +217,7 @@ void build_tree(TreeSitter *treesitter) {
     // ts_tree_cursor_delete(&cursor);
 
   } else {
-    // printf(">>Error parsing\n");
+    log(">>error parsing tree");
   }
 
   ts_parser_delete(parser);
@@ -319,6 +292,7 @@ TreeSitter::~TreeSitter() {
   if (tree) {
     ts_tree_delete(tree);
   }
+  log("~treesitter");
 }
 
 void TreeSitter::set_ready() { state = TreeSitter::State::Ready; }

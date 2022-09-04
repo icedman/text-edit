@@ -10,7 +10,7 @@
 #include <iostream>
 #include <sstream>
 
-#define TS_DOC_SIZE_LIMIT 10000
+#define TS_DOC_SIZE_LIMIT 20000
 #define TS_WORD_INDICES_LINE_LIMIT 500
 #define TS_FIND_FROM_CURSOR_LIMIT 1000
 
@@ -980,8 +980,16 @@ void Document::run_treesitter() {
 
   if (treesitters.size() > 0) {
     treesitter->reference = treesitters.back();
-    treesitter->patch =
-        buffer.get_inverted_changes(treesitter->reference->snapshot);
+    if (treesitter->reference->state < TreeSitter::Ready) {
+      treesitter->reference = nullptr;
+    } else {
+      treesitter->reference->reference = nullptr;
+      treesitter->patch =
+          buffer.get_inverted_changes(treesitter->reference->snapshot);
+      while (treesitters.size() > 2) {
+        treesitters.erase(treesitters.begin());
+      }
+    }
   }
   treesitters.push_back(treesitter);
   TreeSitter::run(treesitter.get());
