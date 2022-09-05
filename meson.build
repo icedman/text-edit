@@ -15,6 +15,22 @@ add_global_arguments('-Wno-unused-variable', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'c')
 
+add_global_arguments('-DCONFIG_VERSION="2021-03-27"', language: 'c')
+quickjs_files = [
+  'libs/quickjs/cutils.c',
+  'libs/quickjs/libbf.c',
+  'libs/quickjs/libregexp.c',
+  'libs/quickjs/libunicode.c',
+  'libs/quickjs/qjscalc.c',
+  'libs/quickjs/quickjs-libc.c',
+  'libs/quickjs/quickjs.c',
+  'libs/quickjs/repl.c'
+]
+
+quickjs_includes = include_directories(
+    'libs/quickjs'
+)
+
 superstring_files = [
     'libs/superstring/src/core/encoding-conversion.cc',
     'libs/superstring/src/core/libmba-diff.cc',
@@ -106,14 +122,6 @@ jsoncpp_files = [
 
 jsoncpp_includes = [
     'libs/jsoncpp/dist'
-]
-
-cjson_files = [
-    'libs/cjson/cJSON.c'
-]
-
-cjson_includes = [
-    'libs/cjson'
 ]
 
 tinyxml2_files = [
@@ -218,9 +226,9 @@ executable('text-edit',
     'src/ui.cpp',
     'src/render.cpp',
     superstring_files,
+    quickjs_files,
     onigmo_files,
     jsoncpp_files,
-    cjson_files,
     tinyxml2_files,
     tm_parser_files,
     tree_sitter_files,
@@ -229,7 +237,7 @@ executable('text-edit',
         'src',
         tm_parser_includes,
         jsoncpp_includes,
-        cjson_includes,
+        quickjs_includes,
         tinyxml2_includes,
         onigmo_includes,
         superstring_includes,
