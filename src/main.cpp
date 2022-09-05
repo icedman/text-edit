@@ -251,6 +251,7 @@ int main(int argc, char **argv) {
 
   int warm_start = 3;
   std::string last_key_sequence;
+  bool did_first_render = false;
 
   editor_ptr prev;
   bool running = true;
@@ -258,6 +259,8 @@ int main(int argc, char **argv) {
     if (!editors.editors.size()) {
       break;
     }
+
+    perf_begin_timer("render");
 
     tabs->show = editors.editors.size() > 1;
 
@@ -466,14 +469,13 @@ int main(int argc, char **argv) {
     _refresh();
     _curs_set(1);
 
-    static bool did_first_render = false;
     if (!did_first_render) {
       perf_end_timer("first render");
       did_first_render = true;
     } else {
       perf_end_timer("render");
     }
-
+    
     // input
     int ch = -1;
     std::string key_sequence;
@@ -547,8 +549,6 @@ int main(int argc, char **argv) {
         }
       }
     }
-
-    perf_begin_timer("render");
 
     _curs_set(0);
     if (ch == 27) {

@@ -492,8 +492,6 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     _attroff(_COLOR_PAIR(pair));
   }
 
-  // for (auto f : doc->folds) {
-  //
 
   BlockPtr block = doc->block_at(cursor.start.row);
   if (block) {
@@ -513,7 +511,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     }
   }
 
-  std::stringstream ss;
+  // std::stringstream ss;
   //   ss << "fold: ";
   //   ss << f.start.row;
   //   ss << ",";
@@ -528,6 +526,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   //   _addstr(ss.str().substr(0, view->computed.w).c_str());
   //   _attroff(_COLOR_PAIR(pair));
   // }
+
   if (treesitter->reference_ready) {
     _move(view->computed.y + row++, view->computed.x);
     _addstr("reference ready");
@@ -629,11 +628,6 @@ void draw_tabs(menu_ptr view, editors_t &editors) {
 void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height) {
   std::vector<textstyle_t> &styles = block->styles;
-
-  // for (auto style : styles) {
-  //   std::string str(text + style.start, style.length);
-  //   block->style_cache[str] = style;
-  // }
 
   int scroll_x = editor->scroll.x;
   int scroll_y = editor->scroll.y;
@@ -818,28 +812,6 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   }
 }
 
-// std::vector<textstyle_t> build_style_from_cache(BlockPtr block,
-//                                                 const char *text) {
-//   std::vector<textstyle_t> res;
-
-//   std::string t = text;
-//   int lastIdx = 0;
-//   for (auto m : block->style_cache) {
-//     std::string key = m.first;
-//     std::string::size_type idx = t.find(key, 0);
-//     if (idx != std::string::npos) {
-//       lastIdx = idx + 1;
-//       textstyle_t s = m.second;
-//       s.start = idx;
-//       s.length = key.size();
-//       // printf("%s\n", key.c_str());
-//       res.push_back(s);
-//     }
-//   }
-
-//   return res;
-// }
-
 bool compare_brackets(Bracket a, Bracket b) {
   return compare_range(a.range, b.range);
 }
@@ -909,20 +881,11 @@ void draw_text_buffer(editor_ptr editor) {
       if (block->dirty && dirty_count != -1) {
         if (doc->language && !doc->language->definition.isNull()) {
 
-          // if (block->styles.size() == 0) {
-
           // log("hl %d", line);
           block->styles = Textmate::run_highlighter(
               (char *)s.str().c_str(), doc->language, Textmate::theme(),
               block.get(), doc->previous_block(block).get(),
               doc->next_block(block).get(), NULL);
-
-          //   block->style_cache.clear();
-          // } else if (block->style_cache.size() > 2) {
-          //   block->styles = build_style_from_cache(block, (char
-          //   *)s.str().c_str());
-          // }
-
           //&block->span_infos);
 
           // find brackets
@@ -935,7 +898,6 @@ void draw_text_buffer(editor_ptr editor) {
           //                 s.flags});
           //   }
           // }
-
           // std::sort(block->brackets.begin(), block->brackets.end(),
           // compare_brackets);
         }
