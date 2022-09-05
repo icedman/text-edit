@@ -1,6 +1,7 @@
 #include "render.h"
 #include "textmate.h"
 #include "utf8.h"
+#include "util.h"
 
 #include <curses.h>
 #include <locale.h>
@@ -14,6 +15,10 @@
 
 #define SELECTED_OFFSET 500
 #define HIGHLIGHT_OFFSET 1000
+#define MAX_LINES_HIGHLIGHT_RUN 12
+
+#define RENDER_BACK_PAGES 1
+#define RENDER_AHEAD_PAGES (RENDER_BACK_PAGES + 4)
 
 static std::map<int, int> colorMap;
 const wchar_t *symbol_tab = L"\u2847";
@@ -391,11 +396,11 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
 
   // highlight
   int idx = 0;
-  int start = scroll_y - vh / 2;
+  int start = scroll_y - (vh * 2);
   if (start < 0)
     start = 0;
 
-  for (int i = 0; i < vh * 2; i++) {
+  for (int i = 0; i < (vh * 3); i++) {
     if (idx + offset_y > editor->computed.h)
       break;
 
@@ -625,10 +630,10 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height) {
   std::vector<textstyle_t> &styles = block->styles;
 
-  for (auto style : styles) {
-    std::string str(text + style.start, style.length);
-    block->style_cache[str] = style;
-  }
+  // for (auto style : styles) {
+  //   std::string str(text + style.start, style.length);
+  //   block->style_cache[str] = style;
+  // }
 
   int scroll_x = editor->scroll.x;
   int scroll_y = editor->scroll.y;
@@ -813,27 +818,27 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   }
 }
 
-std::vector<textstyle_t> build_style_from_cache(BlockPtr block,
-                                                const char *text) {
-  std::vector<textstyle_t> res;
+// std::vector<textstyle_t> build_style_from_cache(BlockPtr block,
+//                                                 const char *text) {
+//   std::vector<textstyle_t> res;
 
-  std::string t = text;
-  int lastIdx = 0;
-  for (auto m : block->style_cache) {
-    std::string key = m.first;
-    std::string::size_type idx = t.find(key, 0);
-    if (idx != std::string::npos) {
-      lastIdx = idx + 1;
-      textstyle_t s = m.second;
-      s.start = idx;
-      s.length = key.size();
-      // printf("%s\n", key.c_str());
-      res.push_back(s);
-    }
-  }
+//   std::string t = text;
+//   int lastIdx = 0;
+//   for (auto m : block->style_cache) {
+//     std::string key = m.first;
+//     std::string::size_type idx = t.find(key, 0);
+//     if (idx != std::string::npos) {
+//       lastIdx = idx + 1;
+//       textstyle_t s = m.second;
+//       s.start = idx;
+//       s.length = key.size();
+//       // printf("%s\n", key.c_str());
+//       res.push_back(s);
+//     }
+//   }
 
-  return res;
-}
+//   return res;
+// }
 
 bool compare_brackets(Bracket a, Bracket b) {
   return compare_range(a.range, b.range);
@@ -853,19 +858,24 @@ void draw_text_buffer(editor_ptr editor) {
   int scroll_y = editor->scroll.y;
   int vh = editor->computed.h;
   int view_start = scroll_y;
-  int view_end = scroll_y + vh;
+  int view_end = scroll_y + (vh * RENDER_AHEAD_PAGES);
 
   int offset_y = 0;
 
   // highlight
   int idx = 0;
-  int start = scroll_y - vh / 2;
+  int start = scroll_y - RENDER_BACK_PAGES;
   if (start < 0)
     start = 0;
 
-  for (int i = 0; i < vh * 2; i++) {
-    if (idx + offset_y > editor->computed.h)
-      break;
+  int dirty_count = 0;
+  editor->request_highlight = false;
+
+  bool skip_rendering = false;
+  for (int i = 0; i < (vh * RENDER_AHEAD_PAGES); i++) {
+    if (idx + offset_y > editor->computed.h) {
+      skip_rendering = true;
+    }
 
     int line = start + i;
     int computed_line = doc->computed_line(line);
@@ -886,10 +896,22 @@ void draw_text_buffer(editor_ptr editor) {
     }
 
     if (line >= view_start && line < view_end) {
-      if (block->dirty) {
+
+      if (block->dirty && dirty_count != -1) {
+        dirty_count ++;
+        // log("%d / %d", dirty_count, vh);
+        if (dirty_count > MAX_LINES_HIGHLIGHT_RUN) {
+          dirty_count = -1;
+          // log("defer highlight");
+        }
+      }
+        
+      if (block->dirty && dirty_count != -1) {
         if (doc->language && !doc->language->definition.isNull()) {
 
           // if (block->styles.size() == 0) {
+
+          // log("hl %d", line);
           block->styles = Textmate::run_highlighter(
               (char *)s.str().c_str(), doc->language, Textmate::theme(),
               block.get(), doc->previous_block(block).get(),
@@ -920,6 +942,10 @@ void draw_text_buffer(editor_ptr editor) {
         block->dirty = false;
       }
 
+      if (skip_rendering) {
+        continue;
+      }
+
       int line_height = 1;
 
       draw_text_line(editor, (idx++) + offset_y, computed_line, s.str().c_str(),
@@ -932,6 +958,8 @@ void draw_text_buffer(editor_ptr editor) {
       }
     }
   }
+
+  editor->request_highlight = dirty_count == -1;
 
   for (int i = idx + offset_y; i < editor->computed.h; i++) {
     _move(editor->computed.y + i, editor->computed.x);

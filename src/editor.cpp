@@ -10,7 +10,7 @@
 #include <algorithm>
 
 editor_t::editor_t()
-    : view_t(), request_treesitter(false), request_autocomplete(false),
+    : view_t(), request_treesitter(false), request_autocomplete(false), request_highlight(false),
       wrap(true), draw_tab_stops(false) {
   focusable = true;
   doc = std::make_shared<Document>();

@@ -19,6 +19,7 @@ struct editor_t : view_t {
 
   bool request_treesitter;
   bool request_autocomplete;
+  bool request_highlight;
   bool wrap;
   bool draw_tab_stops;
 

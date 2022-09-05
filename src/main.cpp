@@ -486,6 +486,11 @@ int main(int argc, char **argv) {
       }
       frames++;
 
+      // highlight request
+      if (editor->request_highlight) {
+        break;
+      }
+
       // background tasks
       if (files->update() || !explorer->items.size()) {
         explorer->items.clear();
