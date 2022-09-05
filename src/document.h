@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "autocomplete.h"
+#include "highlight.h"
 #include "cursor.h"
 #include "parse.h"
 #include "search.h"
@@ -55,7 +56,6 @@ public:
   bool dirty;
 
   std::vector<textstyle_t> styles;
-  std::map<std::string, textstyle_t> style_cache;
   std::vector<span_info_t> span_infos;
 
   std::vector<Range> words;
@@ -141,6 +141,7 @@ public:
   void selection_to_uppercase();
   void selection_to_lowercase();
   void select_word_from_cursor();
+  void select_all();
   void duplicate_selection();
   void duplicate_line();
   void add_cursor_from_selected_word();

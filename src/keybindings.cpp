@@ -75,6 +75,8 @@ std::map<std::string, Command> commands = {
     {"ctrl+/", Command{"toggle_comment", ""}},
     // {"ctrl+`", Command{"toggle_console", ""}},
 
+    {"ctrl+\\", Command{"show_command_line", ""}},
+
     {"ctrl+t", Command{"await", ""}},
     {"ctrl+t+ctrl+r", Command{"toggle_tree_sitter", ""}},
     {"ctrl+t+ctrl+g", Command{"toggle_gutter", ""}},

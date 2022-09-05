@@ -1,6 +1,7 @@
 #include "render.h"
 #include "textmate.h"
 #include "utf8.h"
+#include "util.h"
 
 #include <curses.h>
 #include <locale.h>
@@ -14,6 +15,10 @@
 
 #define SELECTED_OFFSET 500
 #define HIGHLIGHT_OFFSET 1000
+#define MAX_LINES_HIGHLIGHT_RUN 12
+
+#define RENDER_BACK_PAGES 1
+#define RENDER_AHEAD_PAGES (RENDER_BACK_PAGES + 4)
 
 static std::map<int, int> colorMap;
 const wchar_t *symbol_tab = L"\u2847";
@@ -391,11 +396,11 @@ void draw_gutter(editor_ptr editor, view_ptr view) {
 
   // highlight
   int idx = 0;
-  int start = scroll_y - vh / 2;
+  int start = scroll_y - (vh * 2);
   if (start < 0)
     start = 0;
 
-  for (int i = 0; i < vh * 2; i++) {
+  for (int i = 0; i < (vh * 3); i++) {
     if (idx + offset_y > editor->computed.h)
       break;
 
@@ -487,8 +492,6 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     _attroff(_COLOR_PAIR(pair));
   }
 
-  // for (auto f : doc->folds) {
-  //
 
   BlockPtr block = doc->block_at(cursor.start.row);
   if (block) {
@@ -508,7 +511,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     }
   }
 
-  std::stringstream ss;
+  // std::stringstream ss;
   //   ss << "fold: ";
   //   ss << f.start.row;
   //   ss << ",";
@@ -523,6 +526,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
   //   _addstr(ss.str().substr(0, view->computed.w).c_str());
   //   _attroff(_COLOR_PAIR(pair));
   // }
+
   if (treesitter->reference_ready) {
     _move(view->computed.y + row++, view->computed.x);
     _addstr("reference ready");
@@ -624,11 +628,6 @@ void draw_tabs(menu_ptr view, editors_t &editors) {
 void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height) {
   std::vector<textstyle_t> &styles = block->styles;
-
-  for (auto style : styles) {
-    std::string str(text + style.start, style.length);
-    block->style_cache[str] = style;
-  }
 
   int scroll_x = editor->scroll.x;
   int scroll_y = editor->scroll.y;
@@ -766,11 +765,11 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     wchar_t *symbol = NULL;
 
     // tab stop
-    if (tab_size > 0 && (i % tab_size == 0) && i < indent_size) {
-      pair = pair_for_color(cmt, selected, is_cursor_row);
-      symbol = (wchar_t *)symbol_tab;
-      ch = '|';
-    }
+    // if (tab_size > 0 && (i % tab_size == 0) && i < indent_size) {
+    //   pair = pair_for_color(cmt, selected, is_cursor_row);
+    //   symbol = (wchar_t *)symbol_tab;
+    //   ch = '|';
+    // }
 
     // render the character
     _attron(_COLOR_PAIR(pair));
@@ -813,28 +812,6 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   }
 }
 
-std::vector<textstyle_t> build_style_from_cache(BlockPtr block,
-                                                const char *text) {
-  std::vector<textstyle_t> res;
-
-  std::string t = text;
-  int lastIdx = 0;
-  for (auto m : block->style_cache) {
-    std::string key = m.first;
-    std::string::size_type idx = t.find(key, 0);
-    if (idx != std::string::npos) {
-      lastIdx = idx + 1;
-      textstyle_t s = m.second;
-      s.start = idx;
-      s.length = key.size();
-      // printf("%s\n", key.c_str());
-      res.push_back(s);
-    }
-  }
-
-  return res;
-}
-
 bool compare_brackets(Bracket a, Bracket b) {
   return compare_range(a.range, b.range);
 }
@@ -853,19 +830,24 @@ void draw_text_buffer(editor_ptr editor) {
   int scroll_y = editor->scroll.y;
   int vh = editor->computed.h;
   int view_start = scroll_y;
-  int view_end = scroll_y + vh;
+  int view_end = scroll_y + (vh * RENDER_AHEAD_PAGES);
 
   int offset_y = 0;
 
   // highlight
   int idx = 0;
-  int start = scroll_y - vh / 2;
+  int start = scroll_y - RENDER_BACK_PAGES;
   if (start < 0)
     start = 0;
 
-  for (int i = 0; i < vh * 2; i++) {
-    if (idx + offset_y > editor->computed.h)
-      break;
+  int dirty_count = 0;
+  editor->request_highlight = false;
+
+  bool skip_rendering = false;
+  for (int i = 0; i < (vh * RENDER_AHEAD_PAGES); i++) {
+    if (idx + offset_y > editor->computed.h) {
+      skip_rendering = true;
+    }
 
     int line = start + i;
     int computed_line = doc->computed_line(line);
@@ -886,21 +868,24 @@ void draw_text_buffer(editor_ptr editor) {
     }
 
     if (line >= view_start && line < view_end) {
-      if (block->dirty) {
+
+      if (block->dirty && dirty_count != -1) {
+        dirty_count ++;
+        // log("%d / %d", dirty_count, vh);
+        if (dirty_count > MAX_LINES_HIGHLIGHT_RUN) {
+          dirty_count = -1;
+          // log("defer highlight");
+        }
+      }
+        
+      if (block->dirty && dirty_count != -1) {
         if (doc->language && !doc->language->definition.isNull()) {
 
-          // if (block->styles.size() == 0) {
+          // log("hl %d", line);
           block->styles = Textmate::run_highlighter(
               (char *)s.str().c_str(), doc->language, Textmate::theme(),
               block.get(), doc->previous_block(block).get(),
               doc->next_block(block).get(), NULL);
-
-          //   block->style_cache.clear();
-          // } else if (block->style_cache.size() > 2) {
-          //   block->styles = build_style_from_cache(block, (char
-          //   *)s.str().c_str());
-          // }
-
           //&block->span_infos);
 
           // find brackets
@@ -913,11 +898,14 @@ void draw_text_buffer(editor_ptr editor) {
           //                 s.flags});
           //   }
           // }
-
           // std::sort(block->brackets.begin(), block->brackets.end(),
           // compare_brackets);
         }
         block->dirty = false;
+      }
+
+      if (skip_rendering) {
+        continue;
       }
 
       int line_height = 1;
@@ -932,6 +920,8 @@ void draw_text_buffer(editor_ptr editor) {
       }
     }
   }
+
+  editor->request_highlight = dirty_count == -1;
 
   for (int i = idx + offset_y; i < editor->computed.h; i++) {
     _move(editor->computed.y + i, editor->computed.x);

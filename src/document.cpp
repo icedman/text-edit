@@ -262,6 +262,13 @@ void Document::select_word_from_cursor() {
   }
 }
 
+void Document::select_all()
+{
+  clear_cursors();
+  move_to_start_of_document();
+  move_to_end_of_document(true);
+}
+
 void Document::duplicate_selection() {
   if (has_selection()) {
     copy();

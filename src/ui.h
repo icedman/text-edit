@@ -44,4 +44,16 @@ struct find_t : status_line_t {
 
 typedef std::shared_ptr<find_t> find_ptr;
 
+struct cmd_line_t : status_line_t {
+  cmd_line_t();
+  textfield_ptr input;
+
+  std::vector<std::u16string> history;
+  int selected;
+
+  void select_history();
+};
+
+typedef std::shared_ptr<cmd_line_t> cmd_line_ptr;
+
 #endif // TE_UI_H

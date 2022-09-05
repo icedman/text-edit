@@ -10,7 +10,7 @@
 #include <algorithm>
 
 editor_t::editor_t()
-    : view_t(), request_treesitter(false), request_autocomplete(false),
+    : view_t(), request_treesitter(false), request_autocomplete(false), request_highlight(false),
       wrap(true), draw_tab_stops(false) {
   focusable = true;
   doc = std::make_shared<Document>();
@@ -70,9 +70,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     doc->add_cursor_from_selected_word();
   }
   if (cmd.command == "select_all") {
-    doc->clear_cursors();
-    doc->move_to_start_of_document();
-    doc->move_to_end_of_document(true);
+    doc->select_all();
   }
   if (cmd.command == "duplicate_selection") {
     doc->duplicate_selection();

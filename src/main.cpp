@@ -23,12 +23,13 @@
 #include "keybindings.h"
 #include "menu.h"
 #include "render.h"
-#include "textmate.h"
 #include "theme.h"
 #include "ui.h"
 #include "utf8.h"
 #include "util.h"
 #include "view.h"
+#include "js.h"
+#include "highlight.h"
 
 // symbols
 extern const wchar_t *symbol_tab;
@@ -143,10 +144,15 @@ int main(int argc, char **argv) {
     file_path = argv[last_arg];
   }
 
-  Textmate::initialize("/home/iceman/.editor/extensions/");
-  Textmate::initialize("/home/iceman/.vscode/extensions/");
-  Textmate::load_theme(argTheme);
-  theme_info_t info = Textmate::theme_info();
+  JS js;
+  Highlight hl;
+
+  js.initialize();
+  hl.initialize();
+
+  // js.run_script("log('hello world')");
+
+  hl.load_theme(argTheme);
 
   FilesPtr files = std::make_shared<Files>();
   // files->load("./libs/tree-sitter-grammars");
@@ -210,11 +216,13 @@ int main(int argc, char **argv) {
 
   goto_ptr gotoline = std::make_shared<goto_t>();
   find_ptr find = std::make_shared<find_t>();
+  cmd_line_ptr cmdline = std::make_shared<cmd_line_t>();
   root->add_child(gotoline);
   root->add_child(find);
+  root->add_child(cmdline);
 
   std::vector<editor_ptr> input_popups = {gotoline->input, find->input,
-                                          find->replace};
+                                          find->replace, cmdline->input};
 
   // callbacks
   explorer->on_submit = [&files, &explorer, &editors, &editor_views](int idx) {
@@ -251,6 +259,7 @@ int main(int argc, char **argv) {
 
   int warm_start = 3;
   std::string last_key_sequence;
+  bool did_first_render = false;
 
   editor_ptr prev;
   bool running = true;
@@ -258,6 +267,8 @@ int main(int argc, char **argv) {
     if (!editors.editors.size()) {
       break;
     }
+
+    // perf_begin_timer("render");
 
     tabs->show = editors.editors.size() > 1;
 
@@ -337,6 +348,12 @@ int main(int argc, char **argv) {
 
     if (gotoline->show) {
       gotoline->items["title"]->color = gotoline->input->has_focus()
+                                            ? pair_for_color(fn, false, false)
+                                            : pair_for_color(cmt, false, false);
+    }
+
+    if (cmdline->show) {
+      cmdline->items["title"]->color = cmdline->input->has_focus()
                                             ? pair_for_color(fn, false, false)
                                             : pair_for_color(cmt, false, false);
     }
@@ -466,14 +483,13 @@ int main(int argc, char **argv) {
     _refresh();
     _curs_set(1);
 
-    static bool did_first_render = false;
     if (!did_first_render) {
       perf_end_timer("first render");
       did_first_render = true;
     } else {
-      perf_end_timer("render");
+      // perf_end_timer("render");
     }
-
+    
     // input
     int ch = -1;
     std::string key_sequence;
@@ -485,6 +501,11 @@ int main(int argc, char **argv) {
         break;
       }
       frames++;
+
+      // highlight request
+      if (editor->request_highlight) {
+        break;
+      }
 
       // background tasks
       if (files->update() || !explorer->items.size()) {
@@ -528,7 +549,7 @@ int main(int argc, char **argv) {
       if (frames > 2000) {
         frames = 0;
         idle++;
-        if (Textmate::has_running_threads() || (warm_start-- > 0)) {
+        if (hl.has_running_threads() || (warm_start-- > 0)) {
           editor->doc->make_dirty();
           break;
         }
@@ -542,8 +563,6 @@ int main(int argc, char **argv) {
         }
       }
     }
-
-    perf_begin_timer("render");
 
     _curs_set(0);
     if (ch == 27) {
@@ -739,6 +758,39 @@ int main(int argc, char **argv) {
       relayout();
     }
 
+    if (cmd.command == "show_command_line") {
+      view_t::input_focus = cmdline->input;
+      cmdline->input->cursor = {0, 0};
+      cmdline->input->on_submit = [&editor, &message, &js, &cmdline](std::u16string value) {
+        view_t::input_focus = editor;
+        try {
+          if (value.size() > 0) {
+            cmdline->history.push_back(value);
+            cmdline->selected = 0;
+            std::string script = u16string_to_string(value);
+            js.run_script(script, "<input>");
+          }
+        } catch (std::exception &e) {
+          message.str(e.what());
+        }
+        return true;
+      };
+      relayout();
+    }
+
+    if (view_t::input_focus == cmdline->input) {
+      if (key_sequence == "up") {
+        cmdline->selected++;
+        cmdline->select_history();
+      }
+      if (key_sequence == "down") {
+        log("down %d", cmdline->selected);
+        cmdline->selected--;
+        log(" after down %d", cmdline->selected);
+        cmdline->select_history();
+      }
+    }
+
     if (cmd.command == "cancel") {
       if (view_t::input_focus != editor) {
         view_t::input_focus = editor;
@@ -772,11 +824,12 @@ int main(int argc, char **argv) {
 
   // graceful exit... shutting down...
   int idx = 20;
-  while ((Textmate::has_running_threads() || files->has_running_threads()) &&
+  while ((hl.has_running_threads() || files->has_running_threads()) &&
          idx-- > 0) {
     delay(50);
   }
 
-  Textmate::shutdown();
+  js.shutdown();
+  hl.shutdown();
   return 0;
 }
