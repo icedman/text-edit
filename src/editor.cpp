@@ -110,8 +110,8 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
           continue;
         }
         doc->clear_cursors();
-        doc->cursor().start = {start.row, start.column};
-        doc->cursor().end = {end.row, end.column};
+        doc->cursor().start = {start.row, start.column/2};
+        doc->cursor().end = {end.row, end.column/2};
         break;
       }
     }

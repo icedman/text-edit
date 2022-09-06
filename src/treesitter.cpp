@@ -58,6 +58,9 @@ void walk_tree(TSTreeCursor *cursor, int depth, int row, int column,
   //   return;
   // }
 
+  startPoint.column /= 2;
+  endPoint.column /= 2;
+  
   // log("(%d %d)-(%d %d) %s", startPoint.row, startPoint.column, endPoint.row,
   // endPoint.column, type);
 
@@ -211,13 +214,19 @@ void build_tree(TreeSitter *treesitter) {
   tsinput.encoding = TSInputEncodingUTF8;
   TSTree *tree = ts_parser_parse(parser, old_tree, tsinput);
 #else
-  TSTree *tree = ts_parser_parse_string(parser, old_tree,
-                                        (char *)(treesitter->content.c_str()),
-                                        treesitter->content.size());
+  // TSTree *tree = ts_parser_parse_string(parser, old_tree,
+  //                                       (char *)(treesitter->content.c_str()),
+  //                                       treesitter->content.size());
+
+  TSTree *tree = ts_parser_parse_string_encoding(parser, old_tree,
+                                      (char *)(treesitter->snapshot->text().c_str()),
+                                      treesitter->snapshot->size()*2,
+                                      TSInputEncodingUTF16);
 #endif
 
   if (tree) {
     treesitter->tree = tree;
+
     // log("dump----------");
     // TSNode root_node = ts_tree_root_node(tree);
     // TSTreeCursor cursor = ts_tree_cursor_new(root_node);
@@ -232,52 +241,52 @@ void build_tree(TreeSitter *treesitter) {
   ts_parser_delete(parser);
 }
 
-void walk_tree_for_reference(std::string &content, TSTreeCursor *cursor,
-                             int depth, std::vector<std::string> *identifiers) {
-  TSNode node = ts_tree_cursor_current_node(cursor);
-  int start = ts_node_start_byte(node);
-  int end = ts_node_end_byte(node);
-  int l = end - start;
+// void walk_tree_for_reference(std::string &content, TSTreeCursor *cursor,
+//                              int depth, std::vector<std::string> *identifiers) {
+//   TSNode node = ts_tree_cursor_current_node(cursor);
+//   int start = ts_node_start_byte(node);
+//   int end = ts_node_end_byte(node);
+//   int l = end - start;
 
-  const char *type = ts_node_type(node);
-  TSPoint startPoint = ts_node_start_point(node);
-  TSPoint endPoint = ts_node_end_point(node);
+//   const char *type = ts_node_type(node);
+//   TSPoint startPoint = ts_node_start_point(node);
+//   TSPoint endPoint = ts_node_end_point(node);
 
-  if (strcmp(type, "ERROR") == 0) {
-    return;
-  }
+//   if (strcmp(type, "ERROR") == 0) {
+//     return;
+//   }
 
-  if (strcmp(type, "identifier") == 0 && l > 2) {
-    std::string tmp = content.substr(start, end - start);
-    if (std::find(identifiers->begin(), identifiers->end(), tmp) ==
-        identifiers->end()) {
-      identifiers->push_back(tmp);
-    }
-  }
+//   if (strcmp(type, "identifier") == 0 && l > 2) {
+//     std::string tmp = content.substr(start, end - start);
+//     if (std::find(identifiers->begin(), identifiers->end(), tmp) ==
+//         identifiers->end()) {
+//       identifiers->push_back(tmp);
+//     }
+//   }
 
-  TSTreeCursor _cur = ts_tree_cursor_new(node);
-  if (ts_tree_cursor_goto_first_child(&_cur)) {
-    do {
-      walk_tree_for_reference(content, &_cur, depth + 1, identifiers);
-    } while (ts_tree_cursor_goto_next_sibling(&_cur));
-  }
+//   TSTreeCursor _cur = ts_tree_cursor_new(node);
+//   if (ts_tree_cursor_goto_first_child(&_cur)) {
+//     do {
+//       walk_tree_for_reference(content, &_cur, depth + 1, identifiers);
+//     } while (ts_tree_cursor_goto_next_sibling(&_cur));
+//   }
 
-  ts_tree_cursor_delete(&_cur);
-}
+//   ts_tree_cursor_delete(&_cur);
+// }
 
-void build_reference(TreeSitter *treesitter) {
-  if (!treesitter->tree)
-    return;
+// void build_reference(TreeSitter *treesitter) {
+//   if (!treesitter->tree)
+//     return;
 
-  Document *doc = treesitter->document;
-  TextBuffer::Snapshot *snapshot = treesitter->snapshot;
+//   Document *doc = treesitter->document;
+//   TextBuffer::Snapshot *snapshot = treesitter->snapshot;
 
-  TSNode root_node = ts_tree_root_node(treesitter->tree);
-  TSTreeCursor cursor = ts_tree_cursor_new(root_node);
-  walk_tree_for_reference(treesitter->content, &cursor, 0,
-                          &treesitter->identifiers);
-  ts_tree_cursor_delete(&cursor);
-}
+//   TSNode root_node = ts_tree_root_node(treesitter->tree);
+//   TSTreeCursor cursor = ts_tree_cursor_new(root_node);
+//   walk_tree_for_reference(treesitter->content, &cursor, 0,
+//                           &treesitter->identifiers);
+//   ts_tree_cursor_delete(&cursor);
+// }
 
 #define TREESITTER_TTL 32
 
@@ -345,8 +354,6 @@ void *treeSitter_thread(void *arg) {
 
   TreeSitter *treesitter = (TreeSitter *)arg;
 
-  treesitter->content = u16string_to_string(treesitter->snapshot->text());
-
   build_tree(treesitter);
 
   treesitter->thread_id = 0;
@@ -357,8 +364,6 @@ void *treeSitter_thread(void *arg) {
 
   // delete treesitter->snapshot;
   // treesitter->snapshot = NULL;
-
-  treesitter->content.clear();
 
   perf_end_timer("treesitter");
   return NULL;

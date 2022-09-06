@@ -10,7 +10,7 @@
 #include <iostream>
 #include <sstream>
 
-#define TS_DOC_SIZE_LIMIT 20000
+#define TS_DOC_SIZE_LIMIT 50000
 #define TS_WORD_INDICES_LINE_LIMIT 500
 #define TS_FIND_FROM_CURSOR_LIMIT 1000
 
@@ -1060,8 +1060,8 @@ optional<Cursor> Document::block_cursor(Cursor cursor) {
 
     TSPoint start = ts_node_start_point(deepest);
     TSPoint end = ts_node_end_point(deepest);
-    cur.start = {start.row, start.column};
-    cur.end = {end.row, end.column};
+    cur.start = {start.row, start.column/2};
+    cur.end = {end.row, end.column/2};
     cur.node = deepest;
     res = cur;
     if (ts_node_child_count(deepest) > 0 && cur.start.row != cur.end.row) {
