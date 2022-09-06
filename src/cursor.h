@@ -5,6 +5,8 @@
 #include <core/text-buffer.h>
 #include <string>
 
+#include "treesitter.h"
+
 bool is_point_within_range(Point p, Range r);
 bool compare_range(Range a, Range b);
 bool compare_range_reverse(Range a, Range b);
@@ -18,6 +20,8 @@ public:
   TextBuffer *buffer;
   Document *document;
   int id;
+
+  TSNode node;
 
   bool move_up(bool anchor = false);
   bool move_down(bool anchor = false);

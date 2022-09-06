@@ -1,3 +1,4 @@
 build/*
 libs/tree-sitter-grammars/*
 libs/tm-parser/*
+**/*/node_modules

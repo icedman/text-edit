@@ -20,6 +20,8 @@ public:
     int run_script(std::string script, std::string path);
     int run_file(std::string path);
 
+    void loop();
+
     JSRuntime* rt = 0;
     JSContext* ctx = 0;
 };

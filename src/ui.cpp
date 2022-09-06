@@ -80,8 +80,7 @@ cmd_line_t::cmd_line_t() : status_line_t() {
 
 void cmd_line_t::select_history()
 {
-  input->doc->select_all();
-  input->doc->delete_text(1);
+  input->clear();
 
   if (history.size() == 0 || selected < 0) {
     selected = 0;

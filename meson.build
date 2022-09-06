@@ -15,21 +15,18 @@ add_global_arguments('-Wno-unused-variable', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'cpp')
 add_global_arguments('-Wno-unused-parameter', language: 'c')
 
-add_global_arguments('-DCONFIG_VERSION="2021-03-27"', language: 'c')
-quickjs_files = [
-  'libs/quickjs/cutils.c',
-  'libs/quickjs/libbf.c',
-  'libs/quickjs/libregexp.c',
-  'libs/quickjs/libunicode.c',
-  'libs/quickjs/qjscalc.c',
-  'libs/quickjs/quickjs-libc.c',
-  'libs/quickjs/quickjs.c',
-  'libs/quickjs/repl.c'
-]
+quickjs_dep = dependency('quickjs', required: false, disabler: true)
+if not quickjs_dep.found()
+    quickjs_lib = cc.find_library('quickjs', required: true, dirs:['/usr/lib/quickjs', '/usr/local/lib/quickjs'])
+    quickjs_dep = declare_dependency(dependencies: [ quickjs_lib ], include_directories: ['/usr/include/quickjs'])
+endif
 
-quickjs_includes = include_directories(
-    'libs/quickjs'
-)
+curses_dep = dependency('ncursesw', required: false, disabler: true)
+if not curses_dep.found()
+  curses_root = get_option('curses_root')
+  curses_lib = cc.find_library('cursesw', dirs : curses_root, required : true, disabler: true)
+  curses_dep = declare_dependency(include_directories: curses_root, dependencies: curses_lib)
+endif
 
 superstring_files = [
     'libs/superstring/src/core/encoding-conversion.cc',
@@ -194,21 +191,9 @@ tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-json/src/par
 tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-python/src/parser.c'
 tree_sitter_grammar_files += 'libs/tree-sitter-grammars/tree-sitter-python/src/scanner.cc'
 
-if get_option('build_textmate')
-    add_global_arguments('-DTEXTMATE_ENABLED=1', language: 'cpp')
-endif
-
-curses_dep = dependency('ncursesw', required: false, disabler: true)
-if not curses_dep.found()
-  curses_root = get_option('curses_root')
-  curses_lib = cc.find_library('cursesw', dirs : curses_root, required : false, disabler: true)
-  curses_dep = declare_dependency(include_directories: curses_root, dependencies: curses_lib)
-endif
-
 #add_global_arguments('-DPCRE2_CODE_UNIT_WIDTH=16', language: 'cpp')
 #pcre2_dep = dependency('libpcre2-16', required: false, disabler: true)
 
-if get_option('build_curses')
 executable('text-edit',
     'src/main.cpp',
     'src/cursor.cpp',
@@ -228,7 +213,7 @@ executable('text-edit',
     'src/ui.cpp',
     'src/render.cpp',
     superstring_files,
-    quickjs_files,
+    # quickjs_files,
     onigmo_files,
     jsoncpp_files,
     tinyxml2_files,
@@ -239,15 +224,14 @@ executable('text-edit',
         'src',
         tm_parser_includes,
         jsoncpp_includes,
-        quickjs_includes,
+        # quickjs_includes,
         tinyxml2_includes,
         onigmo_includes,
         superstring_includes,
         tree_sitter_includes
     ],
-    dependencies: [ curses_dep ]
+    dependencies: [ curses_dep, quickjs_dep ]
 )
-endif
 
 if get_option('build_tests')
 executable('regex_test',

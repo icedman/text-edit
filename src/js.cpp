@@ -15,7 +15,7 @@ static JSValue js_log(JSContext* ctx, JSValueConst this_val,
 {
     std::stringstream ss;
     
-    ss << "log: ";
+    // ss << "log: ";
     int i;
     const char* str;
 
@@ -74,6 +74,7 @@ void JS::initialize()
 
     global_obj = JS_GetGlobalObject(ctx);
     app = JS_NewObject(ctx);
+    // JS_SetPropertyStr(ctx, global_obj, "log", JS_NewCFunction(ctx, js_log, "log", 1));
     JS_SetPropertyStr(ctx, app, "log", JS_NewCFunction(ctx, js_log, "log", 1));
     JS_SetPropertyStr(ctx, global_obj, "app", app);
     JS_FreeValue(ctx, global_obj);
@@ -81,9 +82,9 @@ void JS::initialize()
     JSValue ret;
     std::string init_script = "import * as std from 'std';";
                 init_script += "import * as os from 'os';";
+                init_script += "app.executablePath = os.realpath('./');";
                 init_script += "globalThis.os = os;";
                 init_script += "globalThis.std = std;";
-                init_script += "app.executablePath = os.realpath('./');";
                 init_script += "globalThis.exports = {}";
 
     ret = JS_Eval(ctx, init_script.c_str(), init_script.length(), "<input>", JS_EVAL_TYPE_MODULE);
@@ -93,15 +94,17 @@ void JS::initialize()
     }
 
     run_file("/home/iceman/Developer/Projects/text_edit_superstring/js/require.js");
+    run_file("/home/iceman/Developer/Projects/text_edit_superstring/js/polyfill.js");
+    run_file("/home/iceman/Developer/Projects/text_edit_superstring/tests/index.js");
 }
 
 void JS::shutdown()
-{
-    js_std_loop(ctx);
-    
+{   
     js_std_free_handlers(rt);
-    JS_FreeContext(ctx);
-    JS_FreeRuntime(rt);
+
+    JS_RunGC(rt);
+    free(ctx);
+    free(rt);
 }
 
 int JS::run_script(std::string script, std::string path)
@@ -126,4 +129,9 @@ int JS::run_file(std::string path)
     buffer << t.rdbuf();
 
     return run_script(buffer.str(), path);
+}
+
+void JS::loop()
+{
+    js_std_loop(ctx);
 }

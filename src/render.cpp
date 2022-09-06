@@ -666,11 +666,12 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
       (editor->has_focus() && (row == doc->cursor().start.row || fold_size));
   int default_pair = pair_for_color(fg, false, is_cursor_row);
   int pair = default_pair;
+  int tab_offset = 0;
 
   for (int i = scroll_x; i < l; i++) {
     pair = default_pair;
 
-    if (i - scroll_x + 1 > (editor->computed.w * (*height))) {
+    if (i - scroll_x + 1 + tab_offset > (editor->computed.w * (*height))) {
       if (!editor->wrap) {
         break;
       }
@@ -695,7 +696,8 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
         }
         if (row == cursor.start.row && i == cursor.start.column) {
           editor->cursor.x = screen_col + i - scroll_x -
-                             (editor->computed.w * ((*height) - 1));
+                             (editor->computed.w * ((*height) - 1))
+                             + tab_offset;
           editor->cursor.y = screen_row;
           if (cursor.has_selection()) {
             if (!cursor.is_normalized()) {
@@ -716,7 +718,6 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     bool underline = false;
 
     // syntax highlights
-    // for (auto s : styles) {
     int idx = 0;
     auto it = styles.rbegin();
     while (it != styles.rend()) {
@@ -776,6 +777,15 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
     if (symbol != NULL) {
       _addwstr(symbol);
     } else {
+
+      if (ch == '\t') {
+        ch = ' ';
+        for(int i=0; i<tab_size - 1; i++) {
+          addch(' ');
+          tab_offset++;
+        }
+      }
+
       _addch(ch);
     }
     _attroff(_COLOR_PAIR(pair));
@@ -803,7 +813,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
   }
 
   if (is_cursor_row || fold_size) {
-    _move(screen_row, screen_col + l);
+    _move(screen_row, screen_col + l + tab_offset);
     for (int i = 0; i < editor->computed.w - l - scroll_x; i++) {
       _attron(_COLOR_PAIR(pair));
       _addch(spacer);

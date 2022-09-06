@@ -1063,6 +1063,7 @@ optional<Cursor> Document::block_cursor(Cursor cursor) {
     TSPoint end = ts_node_end_point(deepest);
     cur.start = {start.row, start.column};
     cur.end = {end.row, end.column};
+    cur.node = deepest;
     res = cur;
     if (ts_node_child_count(deepest) > 0 && cur.start.row != cur.end.row) {
       break;

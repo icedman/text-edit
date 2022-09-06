@@ -507,6 +507,10 @@ int main(int argc, char **argv) {
         break;
       }
 
+      if (frames % 2 == 0) {
+        js.loop();
+      }
+
       // background tasks
       if (files->update() || !explorer->items.size()) {
         explorer->items.clear();
@@ -766,7 +770,8 @@ int main(int argc, char **argv) {
         try {
           if (value.size() > 0) {
             cmdline->history.push_back(value);
-            cmdline->selected = 0;
+            cmdline->selected = -1;
+            cmdline->input->clear();
             std::string script = u16string_to_string(value);
             js.run_script(script, "<input>");
           }

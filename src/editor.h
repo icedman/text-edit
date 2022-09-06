@@ -32,6 +32,10 @@ struct textfield_t : editor_t {
   textfield_t();
   bool on_input(int ch, std::string key_sequence);
 
+  void clear();
+  void set_value(std::u16string);
+  std::u16string get_value();
+
   std::function<bool(std::u16string)> on_submit;
 };
 

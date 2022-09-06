@@ -86,7 +86,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     wrap = !wrap;
     doc->make_dirty();
   }
-  if (cmd.command == "expand_to_block") {
+  if (cmd.command == "select_parent_block") {
     // move to doc
     Cursor cur = doc->cursor().normalized();
     cur.move_left();
@@ -97,6 +97,26 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
       doc->cursor().copy_from(*block_cursor);
     }
   }
+  if (cmd.command == "select_child_block") {
+    Cursor cur = doc->cursor().normalized();
+    optional<Cursor> block_cursor = doc->block_cursor(cur);
+    if (block_cursor) {
+      int c = ts_node_child_count((*block_cursor).node);
+      for(int i=0; i<c; i++) {
+        TSNode child = ts_node_child((*block_cursor).node, i);
+        TSPoint start = ts_node_start_point(child);
+        TSPoint end = ts_node_end_point(child);
+        if (start.row == end.row) {
+          continue;
+        }
+        doc->clear_cursors();
+        doc->cursor().start = {start.row, start.column};
+        doc->cursor().end = {end.row, end.column};
+        break;
+      }
+    }
+  }
+
   if (cmd.command == "toggle_block_fold") {
     doc->toggle_fold(doc->cursor());
   }
@@ -368,6 +388,23 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
   request_treesitter = false;
   return res;
 }
+
+void textfield_t::clear()
+{
+  doc->select_all();
+  doc->delete_text(1);
+}
+
+void textfield_t::set_value(std::u16string value)
+{
+  doc->initialize(value);
+}
+
+std::u16string textfield_t::get_value()
+{
+  return doc->buffer.text();
+}
+
 
 editors_t::editors_t() : selected(0) {}
 
