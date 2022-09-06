@@ -36,7 +36,7 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
 void draw_tabs(menu_ptr view, editors_t &editors);
 void draw_text_line(editor_ptr editor, int screen_row, int row,
                     const char *text, BlockPtr block, int *height = 0);
-void draw_text_buffer(editor_ptr editor);
+void draw_text_buffer(editor_ptr editor, int max_highlight_rows = -1);
 
 void _move(int x, int y);
 void _attron(int attr);

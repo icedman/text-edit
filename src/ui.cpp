@@ -57,7 +57,6 @@ find_t::find_t() : status_line_t(), enable_replace(false) {
   // items["result"] = result;
 }
 
-
 cmd_line_t::cmd_line_t() : status_line_t() {
   frame.h = 1;
   selected = 0;
@@ -78,8 +77,7 @@ cmd_line_t::cmd_line_t() : status_line_t() {
   }
 }
 
-void cmd_line_t::select_history()
-{
+void cmd_line_t::select_history() {
   input->clear();
 
   if (history.size() == 0 || selected < 0) {

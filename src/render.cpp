@@ -492,7 +492,6 @@ void draw_tree_sitter(editor_ptr editor, view_ptr view,
     _attroff(_COLOR_PAIR(pair));
   }
 
-
   BlockPtr block = doc->block_at(cursor.start.row);
   if (block) {
     _move(view->computed.y + row++, view->computed.x);
@@ -696,8 +695,8 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
         }
         if (row == cursor.start.row && i == cursor.start.column) {
           editor->cursor.x = screen_col + i - scroll_x -
-                             (editor->computed.w * ((*height) - 1))
-                             + tab_offset;
+                             (editor->computed.w * ((*height) - 1)) +
+                             tab_offset;
           editor->cursor.y = screen_row;
           if (cursor.has_selection()) {
             if (!cursor.is_normalized()) {
@@ -780,7 +779,7 @@ void draw_text_line(editor_ptr editor, int screen_row, int row,
 
       if (ch == '\t') {
         ch = ' ';
-        for(int i=0; i<tab_size - 1; i++) {
+        for (int i = 0; i < tab_size - 1; i++) {
           addch(' ');
           tab_offset++;
         }
@@ -826,9 +825,13 @@ bool compare_brackets(Bracket a, Bracket b) {
   return compare_range(a.range, b.range);
 }
 
-void draw_text_buffer(editor_ptr editor) {
+void draw_text_buffer(editor_ptr editor, int max_highlight_rows) {
   if (!editor->show)
     return;
+
+  if (max_highlight_rows == -1) {
+    max_highlight_rows = MAX_LINES_HIGHLIGHT_RUN;
+  }
 
   DocumentPtr doc = editor->doc;
   TextBuffer &text = doc->buffer;
@@ -880,14 +883,14 @@ void draw_text_buffer(editor_ptr editor) {
     if (line >= view_start && line < view_end) {
 
       if (block->dirty && dirty_count != -1) {
-        dirty_count ++;
+        dirty_count++;
         // log("%d / %d", dirty_count, vh);
-        if (dirty_count > MAX_LINES_HIGHLIGHT_RUN) {
+        if (dirty_count > max_highlight_rows) {
           dirty_count = -1;
           // log("defer highlight");
         }
       }
-        
+
       if (block->dirty && dirty_count != -1) {
         if (doc->language && !doc->language->definition.isNull()) {
 

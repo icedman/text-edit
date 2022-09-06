@@ -19,7 +19,9 @@
 #include "document.h"
 #include "editor.h"
 #include "files.h"
+#include "highlight.h"
 #include "input.h"
+#include "js.h"
 #include "keybindings.h"
 #include "menu.h"
 #include "render.h"
@@ -28,8 +30,6 @@
 #include "utf8.h"
 #include "util.h"
 #include "view.h"
-#include "js.h"
-#include "highlight.h"
 
 // symbols
 extern const wchar_t *symbol_tab;
@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
 
     draw_tabs(tabs, editors);
     for (auto e : editors.editors) {
-      draw_text_buffer(e);
+      draw_text_buffer(e, !did_first_render ? height : -1);
       draw_gutter(e, gutter);
     }
 
@@ -354,8 +354,8 @@ int main(int argc, char **argv) {
 
     if (cmdline->show) {
       cmdline->items["title"]->color = cmdline->input->has_focus()
-                                            ? pair_for_color(fn, false, false)
-                                            : pair_for_color(cmt, false, false);
+                                           ? pair_for_color(fn, false, false)
+                                           : pair_for_color(cmt, false, false);
     }
 
     // other inputs
@@ -489,7 +489,7 @@ int main(int argc, char **argv) {
     } else {
       // perf_end_timer("render");
     }
-    
+
     // input
     int ch = -1;
     std::string key_sequence;
@@ -762,10 +762,12 @@ int main(int argc, char **argv) {
       relayout();
     }
 
+#if ENABLE_JS
     if (cmd.command == "show_command_line") {
       view_t::input_focus = cmdline->input;
       cmdline->input->cursor = {0, 0};
-      cmdline->input->on_submit = [&editor, &message, &js, &cmdline](std::u16string value) {
+      cmdline->input->on_submit = [&editor, &message, &js,
+                                   &cmdline](std::u16string value) {
         view_t::input_focus = editor;
         try {
           if (value.size() > 0) {
@@ -795,6 +797,7 @@ int main(int argc, char **argv) {
         cmdline->select_history();
       }
     }
+#endif
 
     if (cmd.command == "cancel") {
       if (view_t::input_focus != editor) {

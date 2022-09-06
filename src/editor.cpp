@@ -10,8 +10,8 @@
 #include <algorithm>
 
 editor_t::editor_t()
-    : view_t(), request_treesitter(false), request_autocomplete(false), request_highlight(false),
-      wrap(true), draw_tab_stops(false) {
+    : view_t(), request_treesitter(false), request_autocomplete(false),
+      request_highlight(false), wrap(true), draw_tab_stops(false) {
   focusable = true;
   doc = std::make_shared<Document>();
   doc->initialize(Document::empty());
@@ -102,7 +102,7 @@ bool editor_t::on_input(int ch, std::string key_sequence) {
     optional<Cursor> block_cursor = doc->block_cursor(cur);
     if (block_cursor) {
       int c = ts_node_child_count((*block_cursor).node);
-      for(int i=0; i<c; i++) {
+      for (int i = 0; i < c; i++) {
         TSNode child = ts_node_child((*block_cursor).node, i);
         TSPoint start = ts_node_start_point(child);
         TSPoint end = ts_node_end_point(child);
@@ -389,22 +389,14 @@ bool textfield_t::on_input(int ch, std::string key_sequence) {
   return res;
 }
 
-void textfield_t::clear()
-{
+void textfield_t::clear() {
   doc->select_all();
   doc->delete_text(1);
 }
 
-void textfield_t::set_value(std::u16string value)
-{
-  doc->initialize(value);
-}
+void textfield_t::set_value(std::u16string value) { doc->initialize(value); }
 
-std::u16string textfield_t::get_value()
-{
-  return doc->buffer.text();
-}
-
+std::u16string textfield_t::get_value() { return doc->buffer.text(); }
 
 editors_t::editors_t() : selected(0) {}
 
