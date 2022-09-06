@@ -93,9 +93,9 @@ void JS::initialize()
         JS_ResetUncatchableError(ctx);
     }
 
-    run_file("/home/iceman/Developer/Projects/text_edit_superstring/js/require.js");
-    run_file("/home/iceman/Developer/Projects/text_edit_superstring/js/polyfill.js");
-    run_file("/home/iceman/Developer/Projects/text_edit_superstring/tests/index.js");
+    run_file("/home/iceman/Developer/Projects/text_edit_superstring/runtime/js/require.js");
+    run_file("/home/iceman/Developer/Projects/text_edit_superstring/runtime/js/polyfill.js");
+    run_file("/home/iceman/Developer/Projects/text_edit_superstring/runtime/tests/index.js");
 }
 
 void JS::shutdown()

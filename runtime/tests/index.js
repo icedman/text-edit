@@ -1,6 +1,6 @@
 vscode = require('vscode');
 
-hello = require('./tests/hello/extension.js');
+hello = require('./runtime/tests/hello/extension.js');
 hello.activate(vscode.ExtensionContext);
 vscode.commands.commands['hello.helloWorld'].call();
 
