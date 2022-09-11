@@ -507,9 +507,11 @@ int main(int argc, char **argv) {
         break;
       }
 
+#if ENABLE_JS
       if (frames % 2 == 0) {
         js.loop();
       }
+#endif
 
       // background tasks
       if (files->update() || !explorer->items.size()) {

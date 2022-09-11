@@ -103,7 +103,7 @@ void Document::set_language(language_info_ptr lang) {
   if (pairs.isArray()) {
     for (Json::Value::ArrayIndex i = 0; i < pairs.size(); i++) {
       Json::Value pair = pairs[i];
-      if (pair.isMember("open") && pair.isMember("close")) {
+      if (pair.isObject() && pair.isMember("open") && pair.isMember("close")) {
         autoclose_pairs.push_back(pair["open"].asString());
         autoclose_pairs.push_back(pair["close"].asString());
       }

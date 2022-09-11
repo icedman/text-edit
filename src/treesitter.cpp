@@ -345,6 +345,8 @@ void *treeSitter_thread(void *arg) {
 
   TreeSitter *treesitter = (TreeSitter *)arg;
 
+  // converting to and parsing with utf8 and is faster that parsing utf16
+  // up to some point with very large files conversion is too slow
   treesitter->content = u16string_to_string(treesitter->snapshot->text());
 
   build_tree(treesitter);

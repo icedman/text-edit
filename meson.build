@@ -8,6 +8,7 @@ cc = meson.get_compiler('cpp')
 
 add_global_arguments('-DENABLE_LOG=1', language: 'cpp')
 add_global_arguments('-DENABLE_JS=1', language: 'cpp')
+# add_global_arguments('-DDISABLE_ADD_GRAMMAR_THREADS=1', language: 'cpp')
 
 #add_global_arguments('-DDISABLE_RESOURCE_CACHING=1', language: 'cpp')
 add_global_arguments('-D_XOPEN_SOURCE_EXTENDED=1', language: 'cpp')
